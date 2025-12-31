@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, Flag, AlignLeft, CheckCircle2, Eye, Edit3, Link as LinkIcon, ExternalLink, Trash2, Plus, Globe, ImageIcon, Save, Tag, Check, Palette, Bell, Clock, Activity } from 'lucide-react';
+import { X, Calendar, Flag, AlignLeft, CheckCircle2, Eye, Edit3, Link as LinkIcon, ExternalLink, Trash2, Plus, Globe, ImageIcon, Save, Tag, Check, Palette, Bell, Clock, Activity, Send } from 'lucide-react';
 import { Task, TaskPriority, TaskStatus, Project, Attachment, ResourceCategory, TaskTag, ReminderType } from '../types.ts';
 import { COLORS, TAG_PALETTE } from '../constants.tsx';
 import ReactMarkdown from 'react-markdown';
@@ -138,10 +138,24 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
     setPermissionState(permission);
     
     if (permission === 'granted') {
-      new Notification('🎉 設定成功！', {
-        body: '您已成功開啟通知權限，美樂蒂會在時間到時提醒您喔！',
-        icon: '/vite.svg'
-      });
+      // 立即發送一個測試通知
+      sendTestNotification();
+    }
+  };
+
+  // 🍓 立即測試通知
+  const sendTestNotification = () => {
+    if (!('Notification' in window)) {
+        alert("瀏覽器不支援");
+        return;
+    }
+    if (Notification.permission === 'granted') {
+        new Notification('🔔 測試成功！', {
+            body: `這是來自任務「${task.title}」的測試通知，這樣表示設定沒問題囉！`,
+            icon: '/vite.svg'
+        });
+    } else {
+        requestNotificationPermission();
     }
   };
 
@@ -197,7 +211,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
             </div>
           </div>
 
-          {/* 🍓 任務進度 (新增修復) */}
+          {/* 🍓 任務進度 */}
           <div className="space-y-2 bg-white/50 p-4 rounded-2xl border border-pink-50 shadow-sm">
             <div className="flex justify-between items-center">
                 <label className="text-xs font-bold text-pink-300 flex items-center gap-1 uppercase tracking-wider">
@@ -245,18 +259,28 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
 
           {/* ⏰ 提醒設定 */}
           <div className="space-y-3 bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
-            <label className="text-xs font-bold text-blue-400 flex items-center gap-1 uppercase tracking-wider">
-              <Bell size={12} /> 任務提醒小幫手
-              {!('Notification' in window) && <span className="text-[9px] text-red-400 ml-2">(此瀏覽器不支援通知)</span>}
-              {permissionState !== 'granted' && (
+            <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-blue-400 flex items-center gap-1 uppercase tracking-wider">
+                  <Bell size={12} /> 任務提醒小幫手
+                  {!('Notification' in window) && <span className="text-[9px] text-red-400 ml-2">(此瀏覽器不支援)</span>}
+                  {permissionState !== 'granted' && (
+                    <button 
+                      className="text-[10px] bg-blue-100 text-blue-500 px-2 py-0.5 rounded-md ml-2 font-bold hover:bg-blue-200 transition-colors animate-pulse" 
+                      onClick={requestNotificationPermission}
+                    >
+                      開啟權限
+                    </button>
+                  )}
+                </label>
+                {/* 🍓 新增測試按鈕 */}
                 <button 
-                  className="text-[10px] bg-blue-100 text-blue-500 px-2 py-0.5 rounded-md ml-2 font-bold hover:bg-blue-200 transition-colors animate-pulse" 
-                  onClick={requestNotificationPermission}
+                  onClick={sendTestNotification}
+                  className="flex items-center gap-1 text-[10px] bg-blue-400 text-white px-2 py-1 rounded-lg font-bold hover:bg-blue-500 active:scale-95 transition-all shadow-sm"
                 >
-                  點此開啟權限
+                  <Send size={10} /> 立即測試
                 </button>
-              )}
-            </label>
+            </div>
+            
             <div className="flex flex-col gap-3">
               <select 
                 value={task.reminder?.type || 'none'} 

@@ -632,10 +632,13 @@ const App: React.FC = () => {
 
     const checkReminders = () => {
       // 🛠️ Debug: 確保計時器有在跑 (測試用)
-      console.log('正在檢查任務提醒...', new Date().toLocaleTimeString());
+      console.log('--- 正在檢查任務提醒 ---', new Date().toLocaleTimeString());
 
       // 檢查是否擁有通知權限
-      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      if (!('Notification' in window) || Notification.permission !== 'granted') {
+        console.warn('通知權限未開啟或瀏覽器不支援');
+        return;
+      }
 
       const now = new Date();
       const notifiedKey = 'melody_notified_tasks';
@@ -671,7 +674,11 @@ const App: React.FC = () => {
         if (triggerTime) {
           const diffMinutes = differenceInMinutes(now, triggerTime);
           
+          // Debug specific task info
+          console.log(`任務 [${task.title}] - 觸發時間: ${triggerTime.toLocaleString()} (差 ${diffMinutes} 分鐘)`);
+
           // 觸發條件：時間到了 (diff >= 0) 且在過去 60 分鐘內 (diff <= 60)
+          // 這意味著如果使用者 1 小時沒開網頁，錯過了時間，現在打開也會收到通知 (這是好事)
           if (diffMinutes >= 0 && diffMinutes <= 60) {
             const uniqueKey = `${task.id}_${task.reminder.type}`;
             const lastNotified = notifiedMap[uniqueKey];
@@ -679,6 +686,7 @@ const App: React.FC = () => {
             // 24小時內不重複提醒
             if (!lastNotified || (now.getTime() - lastNotified > 24 * 60 * 60 * 1000)) {
                try {
+                 console.log(`🔔 觸發通知: ${task.title}`);
                  new Notification(`⏰ 任務提醒：${task.title}`, {
                    body: `您的任務即將在 ${format(endDate, 'MM/dd')} 到期！\n目前進度：${task.progress}%`,
                    icon: '/vite.svg' 
@@ -689,6 +697,8 @@ const App: React.FC = () => {
                } catch (e) {
                  console.error("Notification failed:", e);
                }
+            } else {
+               console.log(`   (已通知過，跳過)`);
             }
           }
         }
@@ -696,7 +706,7 @@ const App: React.FC = () => {
     };
 
     // 設定為每 30 秒檢查一次 (測試用，正式可改回 60 秒)
-    const intervalId = setInterval(checkReminders, 10000);
+    const intervalId = setInterval(checkReminders, 30000);
     
     // 首次執行
     checkReminders(); 
