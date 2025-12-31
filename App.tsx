@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { Switch, Route, Redirect, RouteComponentProps } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { GanttChart } from './components/GanttChart';
 import { ProgressBoard } from './components/ProgressBoard';
@@ -162,13 +162,10 @@ const TaskItem = React.memo(({ task, onToggleStatus, onEdit, onDelete }: {
   );
 });
 
-// Update ProjectView to accept RouteComponentProps instead of using hooks
-const ProjectView: React.FC<RouteComponentProps<{ projectId: string, view: string }>> = ({ match, history }) => {
-  const { projectId, view } = match.params;
+const ProjectView: React.FC = () => {
+  const { projectId, view } = useParams<{ projectId: string, view: ViewType }>();
   const { state, dispatch, syncToCloud } = useProjects();
-  // No hooks for navigate or params here
-  const navigate = (path: string) => history.push(path);
-
+  const navigate = useNavigate(); // V6: useHistory -> useNavigate
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -349,7 +346,7 @@ const ProjectView: React.FC<RouteComponentProps<{ projectId: string, view: strin
     // 導航邏輯：如果當前專案被刪除了（不在 next 裡面），導航到 next 的第一個
     // 注意：findProject 是遞迴的，我們這裡使用它來檢查
     if (!findProject(currentProject.id, next)) {
-       navigate(`/project/${next[0].id}/dashboard`);
+       navigate(`/project/${next[0].id}/dashboard`); // V6: history.push -> navigate
     }
   };
 
@@ -377,7 +374,7 @@ const ProjectView: React.FC<RouteComponentProps<{ projectId: string, view: strin
     }
     dispatch({ type: 'UPDATE_PROJECTS', projects: next });
     syncToCloud(next);
-    navigate(`/project/${newP.id}/dashboard`);
+    navigate(`/project/${newP.id}/dashboard`); // V6: history.push -> navigate
   };
 
   // 🍓 登入處理邏輯
@@ -417,7 +414,10 @@ const ProjectView: React.FC<RouteComponentProps<{ projectId: string, view: strin
         }}
         selectedProjectId={currentProject.id} 
         isOpen={isSidebarOpen}
-        onSelectProject={(id) => { navigate(`/project/${id}/${activeView}`); if (window.innerWidth < 768) setIsSidebarOpen(false); }}
+        onSelectProject={(id) => { 
+          navigate(`/project/${id}/${activeView}`); // V6: history.push -> navigate
+          if (window.innerWidth < 768) setIsSidebarOpen(false); 
+        }}
         onAddProject={addProject}
       />
 
@@ -588,7 +588,7 @@ const ProjectView: React.FC<RouteComponentProps<{ projectId: string, view: strin
           projects={state.projects} 
           onClose={() => setIsSearchOpen(false)} 
           onSelect={(id, type) => {
-            navigate(`/project/${id}/dashboard`);
+            navigate(`/project/${id}/dashboard`); // V6: history.push -> navigate
             setIsSearchOpen(false);
           }}
         />
@@ -613,13 +613,11 @@ const App: React.FC = () => {
   const defaultProjectId = state.projects.length > 0 ? state.projects[0].id : 'root-1';
 
   return (
-    <Switch>
-      <Route exact path="/" render={() => <Redirect to={`/project/${defaultProjectId}/dashboard`} />} />
-      <Route path="/project/:projectId/:view" component={ProjectView} />
-      <Route path="*">
-        <Redirect to="/" />
-      </Route>
-    </Switch>
+    <Routes>
+      <Route path="/" element={<Navigate to={`/project/${defaultProjectId}/dashboard`} replace />} />
+      <Route path="/project/:projectId/:view" element={<ProjectView />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 };
 
