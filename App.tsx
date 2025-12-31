@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { Switch, Route, Redirect, useParams, useHistory } from 'react-router-dom';
+import { Switch, Route, Redirect, RouteComponentProps } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { GanttChart } from './components/GanttChart';
 import { ProgressBoard } from './components/ProgressBoard';
@@ -162,10 +162,13 @@ const TaskItem = React.memo(({ task, onToggleStatus, onEdit, onDelete }: {
   );
 });
 
-const ProjectView: React.FC = () => {
-  const { projectId, view } = useParams<{ projectId: string, view: ViewType }>();
+// Update ProjectView to accept RouteComponentProps instead of using hooks
+const ProjectView: React.FC<RouteComponentProps<{ projectId: string, view: string }>> = ({ match, history }) => {
+  const { projectId, view } = match.params;
   const { state, dispatch, syncToCloud } = useProjects();
-  const history = useHistory();
+  // No hooks for navigate or params here
+  const navigate = (path: string) => history.push(path);
+
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -346,7 +349,7 @@ const ProjectView: React.FC = () => {
     // 導航邏輯：如果當前專案被刪除了（不在 next 裡面），導航到 next 的第一個
     // 注意：findProject 是遞迴的，我們這裡使用它來檢查
     if (!findProject(currentProject.id, next)) {
-       history.push(`/project/${next[0].id}/dashboard`);
+       navigate(`/project/${next[0].id}/dashboard`);
     }
   };
 
@@ -374,7 +377,7 @@ const ProjectView: React.FC = () => {
     }
     dispatch({ type: 'UPDATE_PROJECTS', projects: next });
     syncToCloud(next);
-    history.push(`/project/${newP.id}/dashboard`);
+    navigate(`/project/${newP.id}/dashboard`);
   };
 
   // 🍓 登入處理邏輯
@@ -414,7 +417,7 @@ const ProjectView: React.FC = () => {
         }}
         selectedProjectId={currentProject.id} 
         isOpen={isSidebarOpen}
-        onSelectProject={(id) => { history.push(`/project/${id}/${activeView}`); if (window.innerWidth < 768) setIsSidebarOpen(false); }}
+        onSelectProject={(id) => { navigate(`/project/${id}/${activeView}`); if (window.innerWidth < 768) setIsSidebarOpen(false); }}
         onAddProject={addProject}
       />
 
@@ -483,7 +486,7 @@ const ProjectView: React.FC = () => {
             { id: 'calendar', label: '日期表', icon: <Calendar size={18} /> },
             { id: 'notes', label: '設定', icon: <BookOpen size={18} /> },
           ].map(v => (
-            <button key={v.id} onClick={() => history.push(`/project/${currentProject.id}/${v.id}`)} className={`flex items-center gap-2 px-5 md:px-8 py-2 md:py-3 rounded-xl md:rounded-[20px] font-bold transition-all ${activeView === v.id ? 'bg-pink-500 text-white shadow-xl translate-y-[-2px]' : 'text-pink-300 bg-white/50 hover:bg-pink-50'}`}>
+            <button key={v.id} onClick={() => navigate(`/project/${currentProject.id}/${v.id}`)} className={`flex items-center gap-2 px-5 md:px-8 py-2 md:py-3 rounded-xl md:rounded-[20px] font-bold transition-all ${activeView === v.id ? 'bg-pink-500 text-white shadow-xl translate-y-[-2px]' : 'text-pink-300 bg-white/50 hover:bg-pink-50'}`}>
               {v.icon} {v.label}
             </button>
           ))}
@@ -585,7 +588,7 @@ const ProjectView: React.FC = () => {
           projects={state.projects} 
           onClose={() => setIsSearchOpen(false)} 
           onSelect={(id, type) => {
-            history.push(`/project/${id}/dashboard`);
+            navigate(`/project/${id}/dashboard`);
             setIsSearchOpen(false);
           }}
         />
@@ -611,9 +614,7 @@ const App: React.FC = () => {
 
   return (
     <Switch>
-      <Route exact path="/">
-        <Redirect to={`/project/${defaultProjectId}/dashboard`} />
-      </Route>
+      <Route exact path="/" render={() => <Redirect to={`/project/${defaultProjectId}/dashboard`} />} />
       <Route path="/project/:projectId/:view" component={ProjectView} />
       <Route path="*">
         <Redirect to="/" />

@@ -1,9 +1,8 @@
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { HashRouter } from 'react-router-dom'; // 修改這裡
-import App from './App.tsx';
-import { ProjectProvider } from './context/ProjectContext.tsx';
+import { HashRouter } from 'react-router-dom';
+import App from './App';
+import { ProjectProvider } from './context/ProjectContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -13,7 +12,7 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <HashRouter> {/* 修改這裡 */}
+    <HashRouter>
       <ProjectProvider>
         <App />
       </ProjectProvider>
