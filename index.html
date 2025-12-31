@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -10,6 +9,22 @@
   <link rel="stylesheet" href="./index.css">
   
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class', // 啟用 Class 模式
+      theme: {
+        extend: {
+          colors: {
+            // Kuromi Dark Theme Colors
+            'kuromi-bg': '#262024',
+            'kuromi-card': '#332b30',
+            'kuromi-text': '#f3e6ed',
+            'kuromi-accent': '#d4a5b8',
+          }
+        }
+      }
+    }
+  </script>
   <link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     body {
@@ -17,11 +32,28 @@
       background-color: #fff5f8;
       color: #5c4b51;
       overflow-x: hidden;
+      transition: background-color 0.3s ease, color 0.3s ease;
     }
+    
+    /* Dark Mode Global Styles */
+    html.dark body {
+      background-color: #262024; /* Kuromi Background */
+      color: #f3e6ed;
+    }
+
+    /* Scrollbar for Dark Mode */
+    html.dark ::-webkit-scrollbar-track { background: #262024; }
+    html.dark ::-webkit-scrollbar-thumb { background: #7d6570; }
+    html.dark ::-webkit-scrollbar-thumb:hover { background: #d4a5b8; }
+
     .sanrio-pink { background-color: #ffdeeb; }
     .sanrio-text-pink { color: #ff85b2; }
     .sanrio-border-pink { border-color: #ffb8d1; }
+    
     .cute-shadow { box-shadow: 0 4px 14px 0 rgba(255, 184, 209, 0.39); }
+    /* Dark mode shadow */
+    html.dark .cute-shadow { box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.4); }
+
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: #fff5f8; }
     ::-webkit-scrollbar-thumb { background: #ffb8d1; border-radius: 10px; }
@@ -42,6 +74,19 @@
       color: #5c4b51 !important; 
       max-width: none;
     }
+    /* Markdown Dark Mode Overrides */
+    html.dark .prose { color: #e6d0dc !important; }
+    html.dark .prose h1 { color: #ffb7eb !important; border-bottom-color: #5c4652; }
+    html.dark .prose h2 { color: #eea8d0 !important; }
+    html.dark .prose h3 { color: #dcb0c8 !important; }
+    html.dark .prose p, html.dark .prose ul, html.dark .prose ol { color: #e6d0dc !important; }
+    html.dark .prose strong { color: #ff9ee3 !important; }
+    html.dark .prose blockquote { border-left-color: #9d768a; background: #3d3339; color: #eea8d0 !important; }
+    html.dark .prose code { background: #4a3b43 !important; color: #ffb7eb !important; }
+    html.dark .prose th { background-color: #3d3339; color: #eea8d0; }
+    html.dark .prose td { border-top-color: #5c4652; color: #e6d0dc; }
+    html.dark .prose tr:nth-child(even) { background-color: #332b30; }
+
     .prose h1 { font-size: 1.8rem; font-weight: 900; color: #ff6b9d !important; border-bottom: 2px dashed #ffe2e2; padding-bottom: 0.5rem; margin-top: 1.5rem; }
     .prose h2 { font-size: 1.4rem; font-weight: 800; color: #ff85b2 !important; margin-top: 1.2rem; }
     .prose h3 { font-size: 1.1rem; font-weight: 700; color: #ff99c8 !important; }
@@ -54,6 +99,9 @@
     
     /* 表格樣式 */
     .prose table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; border-radius: 16px; overflow: hidden; box-shadow: 0 0 0 1px #ffe2e2; }
+    /* Dark mode table border */
+    html.dark .prose table { box-shadow: 0 0 0 1px #5c4652; }
+    
     .prose th { background-color: #fff0f5; color: #ff85b2; padding: 12px; font-weight: 800; text-align: left; }
     .prose td { padding: 12px; border-top: 1px solid #ffe2e2; color: #5c4b51; }
     .prose tr:nth-child(even) { background-color: #fffcfd; }
@@ -91,12 +139,10 @@
 }
 </script>
 <link rel="stylesheet" href="/index.css">
-<link rel="stylesheet" href="/index.css">
 </head>
 <body>
   <div id="root"></div>
   <script type="module" src="./index.tsx"></script>
-<script type="module" src="/index.tsx"></script>
 <script type="module" src="/index.tsx"></script>
 </body>
 </html>

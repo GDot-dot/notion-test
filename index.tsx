@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { HashRouter } from 'react-router-dom';
+import { HashRouter as Router } from 'react-router-dom';
 import App from './App';
 import { ProjectProvider } from './context/ProjectContext';
 
@@ -12,10 +12,10 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <HashRouter>
+    <Router>
       <ProjectProvider>
         <App />
       </ProjectProvider>
-    </HashRouter>
+    </Router>
   </React.StrictMode>
 );

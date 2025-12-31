@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
 import { Project } from '../types.ts';
 import { INITIAL_PROJECTS } from '../constants.tsx';
@@ -15,6 +14,7 @@ interface State {
   lastSyncedAt: string | null;
   isLoading: boolean;
   isSyncing: boolean;
+  isDarkMode: boolean; // 🍓 新增 Dark Mode 狀態
 }
 
 type Action =
@@ -23,7 +23,8 @@ type Action =
   | { type: 'UPDATE_PROJECTS'; projects: Project[] }
   | { type: 'UPDATE_WORKSPACE'; logo: string; name: string }
   | { type: 'SET_SYNCING'; isSyncing: boolean }
-  | { type: 'SET_LOADING'; isLoading: boolean };
+  | { type: 'SET_LOADING'; isLoading: boolean }
+  | { type: 'TOGGLE_THEME' }; // 新增切換主題動作
 
 const initialState: State = {
   projects: [],
@@ -33,6 +34,7 @@ const initialState: State = {
   lastSyncedAt: null,
   isLoading: true,
   isSyncing: false,
+  isDarkMode: localStorage.getItem('melody_theme') === 'dark',
 };
 
 const projectReducer = (state: State, action: Action): State => {
@@ -55,6 +57,13 @@ const projectReducer = (state: State, action: Action): State => {
       return { ...state, isSyncing: action.isSyncing };
     case 'SET_LOADING':
       return { ...state, isLoading: action.isLoading };
+    case 'TOGGLE_THEME':
+      const newMode = !state.isDarkMode;
+      localStorage.setItem('melody_theme', newMode ? 'dark' : 'light');
+      // 直接操作 DOM 確保立即生效
+      if (newMode) document.documentElement.classList.add('dark');
+      else document.documentElement.classList.remove('dark');
+      return { ...state, isDarkMode: newMode };
     default:
       return state;
   }
@@ -74,6 +83,15 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // 用於防抖動 (Debounce) 的 Timer Ref
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 初始化主題
+  useEffect(() => {
+    if (state.isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
 
   // 🍓 核心修正：監聽登入狀態與處理載入標記
   useEffect(() => {

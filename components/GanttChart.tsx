@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { format, eachDayOfInterval, addDays, differenceInDays } from 'date-fns';
+import { format, eachDayOfInterval, differenceInDays } from 'date-fns';
 import { Task } from '../types.ts';
 import { COLORS } from '../constants.tsx';
 
@@ -11,7 +10,7 @@ interface GanttChartProps {
 export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
   if (tasks.length === 0) {
     return (
-      <div className="h-48 flex items-center justify-center bg-white rounded-[32px] md:rounded-[40px] border-2 border-dashed border-pink-200 text-pink-300">
+      <div className="h-48 flex items-center justify-center bg-white dark:bg-kuromi-card rounded-[32px] md:rounded-[40px] border-2 border-dashed border-pink-200 dark:border-gray-700 text-pink-300 dark:text-gray-500">
         <p>目前沒有排程任務 🍰</p>
       </div>
     );
@@ -24,14 +23,18 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
   const minTime = Math.min(...allStartDates);
   const maxTime = Math.max(...allEndDates);
   
-  // 2. 設定顯示範圍：最早日期前推 1 天，最晚日期後推 2 天 (留一點呼吸空間)
-  const rangeStart = addDays(new Date(minTime), -1);
+  // 2. 設定顯示範圍：精準對齊任務日期
+  const rangeStart = new Date(minTime);
   rangeStart.setHours(0, 0, 0, 0);
   
-  const rangeEnd = addDays(new Date(maxTime), 2);
+  // 如果只有一天，讓結束時間至少包含當天
+  let rangeEnd = new Date(maxTime);
   rangeEnd.setHours(0, 0, 0, 0);
+  if (rangeEnd.getTime() <= rangeStart.getTime()) {
+      rangeEnd = new Date(rangeStart);
+  }
 
-  // 產生日期陣列
+  // 產生日期陣列 (包含頭尾)
   const allDays = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
   // 每 3 天顯示一次日期標籤，避免太擁擠
   const headerDays = allDays.filter((_, i) => i % 3 === 0);
@@ -40,22 +43,22 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
   const CELL_WIDTH = 40; 
 
   return (
-    <div className="bg-white rounded-[32px] md:rounded-[40px] p-4 md:p-8 overflow-hidden cute-shadow border border-pink-100">
-      <h2 className="text-lg md:text-xl font-bold text-pink-600 mb-6 md:border-none border-b border-pink-50 pb-4 md:pb-0 flex items-center gap-2">
+    <div className="bg-white dark:bg-kuromi-card rounded-[32px] md:rounded-[40px] p-4 md:p-8 overflow-hidden cute-shadow border border-pink-100 dark:border-gray-700">
+      <h2 className="text-lg md:text-xl font-bold text-pink-600 dark:text-kuromi-accent mb-6 md:border-none border-b border-pink-50 dark:border-gray-700 pb-4 md:pb-0 flex items-center gap-2">
         <span className="text-xl md:text-2xl">❤️</span> 專案開發甘特圖
       </h2>
       
       <div className="overflow-x-auto custom-scrollbar pb-4">
         {/* 動態計算容器寬度，確保不會被切掉 */}
-        <div style={{ minWidth: `${allDays.length * CELL_WIDTH + 200}px` }}>
+        <div style={{ minWidth: `${Math.max(allDays.length * CELL_WIDTH, 600)}px` }}>
           {/* 表頭 */}
-          <div className="flex mb-4 relative h-8 border-b border-pink-50">
-            <div className="w-32 md:w-48 flex-shrink-0 font-bold text-pink-400 text-xs md:text-sm pl-2 sticky left-0 bg-white z-20">任務名稱</div>
+          <div className="flex mb-4 relative h-8 border-b border-pink-50 dark:border-gray-700">
+            <div className="w-32 md:w-48 flex-shrink-0 font-bold text-pink-400 dark:text-gray-400 text-xs md:text-sm pl-2 sticky left-0 bg-white dark:bg-kuromi-card z-20">任務名稱</div>
             <div className="flex-1 relative">
               {headerDays.map((day, idx) => {
                 const leftPos = differenceInDays(day, rangeStart) * CELL_WIDTH;
                 return (
-                  <div key={idx} className="absolute text-[10px] md:text-[11px] font-bold text-pink-300 transform -translate-x-1/2" style={{ left: `${leftPos + (CELL_WIDTH/2)}px` }}>
+                  <div key={idx} className="absolute text-[10px] md:text-[11px] font-bold text-pink-300 dark:text-gray-500 transform -translate-x-1/2" style={{ left: `${leftPos + (CELL_WIDTH/2)}px` }}>
                     {format(day, 'MM/dd')}
                   </div>
                 );
@@ -81,15 +84,15 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
               const barColor = task.color || priorityColor;
 
               return (
-                <div key={task.id} className="flex group items-center hover:bg-pink-50/30 rounded-xl transition-colors">
-                  <div className="w-32 md:w-48 flex-shrink-0 sticky left-0 bg-white group-hover:bg-pink-50/10 z-20 pr-2">
-                    <div className="text-xs md:text-sm font-bold text-[#5c4b51] truncate" title={task.title}>{task.title}</div>
-                    <div className="text-[9px] md:text-[10px] text-pink-300 font-bold">{task.progress}% 完成</div>
+                <div key={task.id} className="flex group items-center hover:bg-pink-50/30 dark:hover:bg-white/5 rounded-xl transition-colors">
+                  <div className="w-32 md:w-48 flex-shrink-0 sticky left-0 bg-white dark:bg-kuromi-card group-hover:bg-pink-50/10 dark:group-hover:bg-transparent z-20 pr-2">
+                    <div className="text-xs md:text-sm font-bold text-[#5c4b51] dark:text-gray-300 truncate" title={task.title}>{task.title}</div>
+                    <div className="text-[9px] md:text-[10px] text-pink-300 dark:text-gray-500 font-bold">{task.progress}% 完成</div>
                   </div>
-                  <div className="flex-1Hx relative h-6 md:h-8">
+                  <div className="flex-1 relative h-6 md:h-8">
                     {/* 進度條背景軌道 */}
                     <div 
-                      className="absolute top-1 h-4 md:h-6 rounded-full transition-transform group-hover:scale-[1.01] cursor-pointer flex items-center justify-end pr-2 md:pr-3 overflow-hidden border border-white shadow-sm"
+                      className="absolute top-1 h-4 md:h-6 rounded-full transition-transform group-hover:scale-[1.01] cursor-pointer flex items-center justify-end pr-2 md:pr-3 overflow-hidden border border-white dark:border-gray-600 shadow-sm"
                       style={{ 
                         left: `${left}px`, 
                         width: `${width}px`,

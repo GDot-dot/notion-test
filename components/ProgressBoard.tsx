@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Task, TaskStatus } from '../types';
@@ -29,19 +28,19 @@ export const ProgressBoard: React.FC<ProgressBoardProps> = ({ tasks }) => {
   const overallProgress = Math.round(tasks.reduce((acc, t) => acc + (t.progress || 0), 0) / totalTasks);
 
   return (
-    <div className="bg-white rounded-[32px] md:rounded-[40px] p-6 md:p-8 cute-shadow border border-pink-100 flex flex-col h-full min-h-[440px]">
+    <div className="bg-white dark:bg-kuromi-card rounded-[32px] md:rounded-[40px] p-6 md:p-8 cute-shadow border border-pink-100 dark:border-gray-700 flex flex-col h-full min-h-[440px]">
       <div className="w-full flex items-center justify-between mb-8">
-        <h3 className="text-xl font-black text-pink-600 flex items-center gap-3">
-          <span className="p-2 bg-pink-100 rounded-xl text-pink-500 shadow-sm"><BarChart3 size={20} /></span>
+        <h3 className="text-xl font-black text-pink-600 dark:text-kuromi-accent flex items-center gap-3">
+          <span className="p-2 bg-pink-100 dark:bg-gray-700 rounded-xl text-pink-500 shadow-sm"><BarChart3 size={20} /></span>
           任務進度
         </h3>
         
         {/* 分頁切換區域 */}
-        <div className="flex bg-pink-50 p-1 rounded-2xl border border-pink-100">
+        <div className="flex bg-pink-50 dark:bg-gray-700 p-1 rounded-2xl border border-pink-100 dark:border-gray-600">
           <button 
             onClick={() => setViewMode('summary')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-              viewMode === 'summary' ? 'bg-white text-pink-500 shadow-sm' : 'text-pink-300 hover:text-pink-400'
+              viewMode === 'summary' ? 'bg-white dark:bg-gray-600 text-pink-500 dark:text-pink-300 shadow-sm' : 'text-pink-300 dark:text-gray-400 hover:text-pink-400'
             }`}
           >
             <PieIcon size={14} /> 摘要
@@ -49,7 +48,7 @@ export const ProgressBoard: React.FC<ProgressBoardProps> = ({ tasks }) => {
           <button 
             onClick={() => setViewMode('details')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-              viewMode === 'details' ? 'bg-white text-pink-500 shadow-sm' : 'text-pink-300 hover:text-pink-400'
+              viewMode === 'details' ? 'bg-white dark:bg-gray-600 text-pink-500 dark:text-pink-300 shadow-sm' : 'text-pink-300 dark:text-gray-400 hover:text-pink-400'
             }`}
           >
             <LayoutList size={14} /> 任務清單
@@ -80,8 +79,8 @@ export const ProgressBoard: React.FC<ProgressBoardProps> = ({ tasks }) => {
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-4xl md:text-5xl font-black text-pink-500 drop-shadow-sm">{overallProgress}%</span>
-            <span className="text-[10px] md:text-xs text-pink-300 font-bold tracking-widest uppercase mt-1">總體進度</span>
+            <span className="text-4xl md:text-5xl font-black text-pink-500 dark:text-pink-300 drop-shadow-sm">{overallProgress}%</span>
+            <span className="text-[10px] md:text-xs text-pink-300 dark:text-gray-400 font-bold tracking-widest uppercase mt-1">總體進度</span>
           </div>
         </div>
 
@@ -96,13 +95,13 @@ export const ProgressBoard: React.FC<ProgressBoardProps> = ({ tasks }) => {
             ].map((item, idx) => (
               <div key={idx} className="space-y-2 group">
                 <div className="flex items-center justify-between text-sm font-bold">
-                  <span className="text-[#5c4b51] flex items-center gap-2">
+                  <span className="text-[#5c4b51] dark:text-gray-300 flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
                     {item.label}
                   </span>
-                  <span className="text-pink-400 font-black">{item.progress}%</span>
+                  <span className="text-pink-400 dark:text-pink-300 font-black">{item.progress}%</span>
                 </div>
-                <div className="h-3.5 bg-pink-50 rounded-full overflow-hidden shadow-inner border border-white">
+                <div className="h-3.5 bg-pink-50 dark:bg-gray-700 rounded-full overflow-hidden shadow-inner border border-white dark:border-gray-600">
                   <div 
                     className="h-full rounded-full transition-all duration-1000 ease-out shadow-sm"
                     style={{ width: `${item.progress}%`, backgroundColor: item.color }}
@@ -115,10 +114,10 @@ export const ProgressBoard: React.FC<ProgressBoardProps> = ({ tasks }) => {
             tasks.length > 0 ? tasks.map((task) => (
               <div key={task.id} className="space-y-1.5 animate-in slide-in-from-right duration-300">
                 <div className="flex items-center justify-between text-[13px] font-bold">
-                  <span className="text-[#5c4b51] truncate max-w-[200px]">{task.title}</span>
+                  <span className="text-[#5c4b51] dark:text-gray-300 truncate max-w-[200px]">{task.title}</span>
                   <span className="text-pink-400 font-black">{task.progress}%</span>
                 </div>
-                <div className="h-3 bg-pink-50 rounded-full overflow-hidden border border-white shadow-inner">
+                <div className="h-3 bg-pink-50 dark:bg-gray-700 rounded-full overflow-hidden border border-white dark:border-gray-600 shadow-inner">
                   <div 
                     className="h-full rounded-full transition-all duration-1000 shadow-sm"
                     style={{ width: `${task.progress}%`, backgroundColor: task.color || '#ffb8d1' }}
@@ -126,7 +125,7 @@ export const ProgressBoard: React.FC<ProgressBoardProps> = ({ tasks }) => {
                 </div>
               </div>
             )) : (
-              <div className="text-center py-10 text-pink-200 font-bold italic">尚無個別任務進度 🍬</div>
+              <div className="text-center py-10 text-pink-200 dark:text-gray-500 font-bold italic">尚無個別任務進度 🍬</div>
             )
           )}
         </div>
