@@ -696,7 +696,7 @@ const App: React.FC = () => {
     };
 
     // 設定為每 30 秒檢查一次 (測試用，正式可改回 60 秒)
-    const intervalId = setInterval(checkReminders, 30000);
+    const intervalId = setInterval(checkReminders, 10000);
     
     // 首次執行
     checkReminders(); 
