@@ -25,6 +25,10 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
   // 預設隨機選一個顏色
   const [selectedTagColor, setSelectedTagColor] = useState(TAG_PALETTE[Math.floor(Math.random() * TAG_PALETTE.length)]);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  // 通知權限狀態
+  const [permissionState, setPermissionState] = useState(
+    'Notification' in window ? Notification.permission : 'default'
+  );
 
   // 當外部 task 改變時（如切換任務），同步內容
   useEffect(() => {
@@ -98,7 +102,14 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
       // 預設為目前時間往後一小時
       const now = new Date();
       now.setHours(now.getHours() + 1);
-      const defaultIso = now.toISOString().slice(0, 16);
+      // 修正：產生符合 datetime-local 格式的時間字串 (yyyy-MM-ddThh:mm)
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const defaultIso = `${year}-${month}-${day}T${hours}:${minutes}`;
+      
       onUpdate({ reminder: { type, date: defaultIso } });
     } else {
       onUpdate({ reminder: { type } });
@@ -108,6 +119,29 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
   const handleCustomDateChange = (dateStr: string) => {
     if (task.reminder && task.reminder.type === 'custom') {
       onUpdate({ reminder: { ...task.reminder, date: dateStr } });
+    }
+  };
+
+  // 🍓 手動請求權限按鈕
+  const requestNotificationPermission = async () => {
+    if (!('Notification' in window)) {
+      alert("您的瀏覽器不支援通知功能 🥺");
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      alert("❌ 通知已被封鎖\n\n請點擊網址列左側的「鎖頭」圖示，手動將「通知」改為「允許」，然後重新整理網頁。");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    setPermissionState(permission);
+    
+    if (permission === 'granted') {
+      new Notification('🎉 設定成功！', {
+        body: '您已成功開啟通知權限，美樂蒂會在時間到時提醒您喔！',
+        icon: '/vite.svg'
+      });
     }
   };
 
@@ -190,7 +224,14 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
             <label className="text-xs font-bold text-blue-400 flex items-center gap-1 uppercase tracking-wider">
               <Bell size={12} /> 任務提醒小幫手
               {!('Notification' in window) && <span className="text-[9px] text-red-400 ml-2">(此瀏覽器不支援通知)</span>}
-              {('Notification' in window && Notification.permission !== 'granted') && <span className="text-[9px] text-pink-400 ml-2 animate-pulse cursor-pointer hover:underline" onClick={() => Notification.requestPermission()}>點此開啟權限</span>}
+              {permissionState !== 'granted' && (
+                <button 
+                  className="text-[10px] bg-blue-100 text-blue-500 px-2 py-0.5 rounded-md ml-2 font-bold hover:bg-blue-200 transition-colors animate-pulse" 
+                  onClick={requestNotificationPermission}
+                >
+                  點此開啟權限
+                </button>
+              )}
             </label>
             <div className="flex flex-col gap-3">
               <select 

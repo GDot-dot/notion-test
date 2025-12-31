@@ -14,7 +14,7 @@ import { useProjects } from './context/ProjectContext';
 // Fix: Use consolidated exports from local firebase lib
 import { auth, googleProvider, isConfigured, signInWithPopup, signOut } from './lib/firebase';
 import { Plus, LayoutDashboard, Calendar, BarChart2, BookOpen, Trash2, Check, Edit3, Menu, LogIn, Loader2, Save, CloudCheck, Search, FolderHeart, Sparkles, CloudOff, Filter, Tag, Bell } from 'lucide-react';
-import { addDays, subDays, isBefore, isAfter, parseISO, differenceInMinutes, format } from 'date-fns';
+import { addDays, differenceInMinutes, format } from 'date-fns';
 
 // 🍓 搜尋面板組件
 const SearchPalette: React.FC<{ 
@@ -616,14 +616,18 @@ const App: React.FC = () => {
   // Find a default project ID to redirect to
   const defaultProjectId = state.projects.length > 0 ? state.projects[0].id : 'root-1';
   
-  // 🍓 任務提醒邏輯 (每分鐘檢查一次)
+  // 🍓 任務提醒邏輯 (每 10 秒檢查一次)
   useEffect(() => {
-    // 請求通知權限
+    // 請求通知權限 (非強制，僅在可用時)
     if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
+      // 瀏覽器可能會阻擋這個請求，除非是在用戶互動後
+      // Notification.requestPermission(); 
     }
 
     const checkReminders = () => {
+      // 🛠️ Debug: 確保計時器有在跑
+      console.log('正在檢查任務提醒...', new Date().toLocaleTimeString());
+
       if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
       const now = new Date();
@@ -645,14 +649,17 @@ const App: React.FC = () => {
         if (task.status === TaskStatus.COMPLETED || !task.reminder || task.reminder.type === 'none') return;
         
         let triggerTime: Date | null = null;
-        const endDate = parseISO(task.endDate);
+        // ParseISO handles ISO strings correctly (e.g. 2023-10-27T10:00:00.000Z)
+        // Note: Task endDate is stored as ISO string.
+        const endDate = new Date(task.endDate);
         
         if (task.reminder.type === '1_day') {
-          triggerTime = subDays(endDate, 1);
+          triggerTime = addDays(endDate, -1);
         } else if (task.reminder.type === '3_days') {
-          triggerTime = subDays(endDate, 3);
+          triggerTime = addDays(endDate, -3);
         } else if (task.reminder.type === 'custom' && task.reminder.date) {
-          triggerTime = parseISO(task.reminder.date);
+          // 自訂時間存的是 ISO 格式的本地時間字串 (如 2023-10-27T15:30)
+          triggerTime = new Date(task.reminder.date);
         }
 
         if (triggerTime) {
@@ -667,21 +674,24 @@ const App: React.FC = () => {
             const lastNotified = notifiedMap[uniqueKey];
             if (!lastNotified || (now.getTime() - lastNotified > 24 * 60 * 60 * 1000)) {
                // 發送通知
-               new Notification(`⏰ 任務提醒：${task.title}`, {
-                 body: `您的任務即將在 ${format(endDate, 'MM/dd')} 到期！\n目前進度：${task.progress}%`,
-                 icon: '/vite.svg' // 使用預設 icon 或專案 icon
-               });
-               
-               // 更新記錄
-               notifiedMap[uniqueKey] = now.getTime();
-               localStorage.setItem(notifiedKey, JSON.stringify(notifiedMap));
+               try {
+                 new Notification(`⏰ 任務提醒：${task.title}`, {
+                   body: `您的任務即將在 ${format(endDate, 'MM/dd')} 到期！\n目前進度：${task.progress}%`,
+                   icon: '/vite.svg' // 使用預設 icon 或專案 icon
+                 });
+                 // 更新記錄
+                 notifiedMap[uniqueKey] = now.getTime();
+                 localStorage.setItem(notifiedKey, JSON.stringify(notifiedMap));
+               } catch (e) {
+                 console.error("Notification failed:", e);
+               }
             }
           }
         }
       });
     };
 
-    const intervalId = setInterval(checkReminders, 60000); // 每 60 秒檢查一次
+    const intervalId = setInterval(checkReminders, 10000); // 每 10 秒檢查一次 (測試用)
     checkReminders(); // 初始檢查
 
     return () => clearInterval(intervalId);
