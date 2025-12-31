@@ -65,6 +65,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
 
               // 根據優先度獲取顏色
               const priorityColor = COLORS.priority[task.priority] || '#f3f4f6';
+              // 🍓 修正：使用任務本身的顏色作為進度條顏色，若無則用優先級顏色，並加深一點以突顯
+              const barColor = task.color || priorityColor;
 
               return (
                 <div key={task.id} className="flex group items-center">
@@ -73,26 +75,45 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
                     <div className="text-[9px] md:text-[10px] text-pink-300 font-bold">{task.progress}% 完成</div>
                   </div>
                   <div className="flex-1 relative h-6 md:h-8">
+                    {/* 進度條背景軌道 (半透明) */}
                     <div 
-                      className="absolute top-0 h-5 md:h-6 rounded-full shadow-sm transition-transform group-hover:scale-[1.01] cursor-pointer flex items-center justify-end pr-2 md:pr-3 overflow-hidden"
+                      className="absolute top-0 h-5 md:h-6 rounded-full transition-transform group-hover:scale-[1.01] cursor-pointer flex items-center justify-end pr-2 md:pr-3 overflow-hidden border border-white shadow-sm"
                       style={{ 
                         left: `${left}px`, 
                         width: `${width}px`,
-                        backgroundColor: priorityColor, // 背景使用較淡的優先度顏色
-                        border: `1.5px solid ${priorityColor}`, // 邊框使用優先度顏色
-                        opacity: 0.9
+                        backgroundColor: priorityColor,
+                        opacity: 0.3, // 🍓 關鍵修正：讓軌道變淡
+                      }}
+                    />
+                    
+                    {/* 實體進度條 (前景) */}
+                    <div 
+                      className="absolute top-0 h-5 md:h-6 rounded-full transition-all duration-300 pointer-events-none z-10 flex items-center overflow-hidden"
+                      style={{
+                        left: `${left}px`,
+                        width: `${Math.max((width * task.progress) / 100, 12)}px`, // 確保至少有一點點寬度可見
+                        backgroundColor: barColor,
+                        filter: 'saturate(1.2) brightness(0.95)', // 🍓 讓顏色稍微飽和一點，突出顯示
+                        boxShadow: '2px 0 5px rgba(0,0,0,0.1)'
                       }}
                     >
-                      {/* 進度條填滿部分 */}
-                      <div 
-                        className="absolute left-0 top-0 h-full rounded-full transition-all duration-1000 flex items-center shadow-inner" 
+                       {/* 只有當進度大於 20% 才顯示文字，避免擠壓 */}
+                       {task.progress > 20 && (
+                          <span className="ml-2 text-[9px] font-black text-white/90 drop-shadow-md whitespace-nowrap">
+                            {task.progress}%
+                          </span>
+                       )}
+                    </div>
+                    
+                    {/* 天數標記 (浮在最上面) */}
+                    <div 
+                        className="absolute top-0 h-5 md:h-6 flex items-center justify-end pr-2 pointer-events-none z-20"
                         style={{ 
-                          width: `${task.progress}%`, 
-                          backgroundColor: priorityColor,
-                          filter: 'brightness(0.9)' // 讓進度部分稍微深一點以示區別
-                        }} 
-                      />
-                      <span className="relative z-10 text-[8px] md:text-[10px] font-black text-[#5c4b51] drop-shadow-sm whitespace-nowrap">{duration}天</span>
+                            left: `${left}px`, 
+                            width: `${width}px`,
+                        }}
+                    >
+                        <span className="text-[9px] font-bold text-[#5c4b51] opacity-60">{duration}天</span>
                     </div>
                   </div>
                 </div>
