@@ -1,6 +1,6 @@
 import React from 'react';
 import { format, eachDayOfInterval, differenceInDays } from 'date-fns';
-import { Task } from '../types.ts';
+import { Task, TaskPriority } from '../types.ts';
 import { COLORS } from '../constants.tsx';
 
 interface GanttChartProps {
@@ -42,6 +42,20 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
   // 每個格子的寬度
   const CELL_WIDTH = 40; 
 
+  // 🍓 根據優先度決定進度條顏色 (低-藍, 中-黃, 高-紅)
+  const getPriorityBarColor = (priority: TaskPriority) => {
+    switch (priority) {
+      case TaskPriority.LOW:
+        return '#90caf9'; // 藍色
+      case TaskPriority.MEDIUM:
+        return '#fdd835'; // 黃色 (深一點以便閱讀)
+      case TaskPriority.HIGH:
+        return '#ef9a9a'; // 紅色
+      default:
+        return '#ffb8d1'; // 預設粉色
+    }
+  };
+
   return (
     <div className="bg-white dark:bg-kuromi-card rounded-[32px] md:rounded-[40px] p-4 md:p-8 overflow-hidden cute-shadow border border-pink-100 dark:border-gray-700">
       <h2 className="text-lg md:text-xl font-bold text-pink-600 dark:text-kuromi-accent mb-6 md:border-none border-b border-pink-50 dark:border-gray-700 pb-4 md:pb-0 flex items-center gap-2">
@@ -78,10 +92,10 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
               const daysDiff = differenceInDays(end, start) + 1;
               const width = Math.max(daysDiff * CELL_WIDTH, CELL_WIDTH); // 至少顯示一格寬
 
-              // 根據優先度獲取顏色
-              const priorityColor = COLORS.priority[task.priority] || '#f3f4f6';
-              // 使用任務本身的顏色作為進度條顏色，若無則用優先級顏色
-              const barColor = task.color || priorityColor;
+              // 根據優先度獲取背景淡色
+              const priorityBgColor = COLORS.priority[task.priority] || '#f3f4f6';
+              // 根據優先度獲取進度條主色 (覆蓋原本的 task.color)
+              const barColor = getPriorityBarColor(task.priority);
 
               return (
                 <div key={task.id} className="flex group items-center hover:bg-pink-50/30 dark:hover:bg-white/5 rounded-xl transition-colors">
@@ -96,8 +110,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
                       style={{ 
                         left: `${left}px`, 
                         width: `${width}px`,
-                        backgroundColor: priorityColor,
-                        opacity: 0.3, 
+                        backgroundColor: priorityBgColor,
+                        opacity: 0.5, 
                       }}
                     />
                     
