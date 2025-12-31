@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Trash2, Plus, Edit3, Palette, Check } from 'lucide-react';
 import { COLORS } from '../constants.tsx';
@@ -43,21 +42,21 @@ export const ProjectPrecautions: React.FC<ProjectPrecautionsProps> = ({
 
   return (
     <div 
-      className="rounded-[40px] p-8 cute-shadow border transition-colors duration-500 h-full flex flex-col relative"
+      className="rounded-[40px] p-8 cute-shadow border transition-all duration-500 h-full flex flex-col relative dark:!bg-white/5 dark:!border-gray-700"
       style={{ 
         backgroundColor: backgroundColor,
         borderColor: `${backgroundColor}dd` 
       }}
     >
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-xl font-bold flex items-center gap-2" style={{ color: 'rgba(0,0,0,0.6)' }}>
+        <h3 className="text-xl font-bold flex items-center gap-2 text-[#5c4b51]/80 dark:text-gray-200">
           <Edit3 size={24} className="opacity-70" /> 專案注意事項
         </h3>
         
         {/* 調色盤區域 */}
         <div className="flex items-center gap-2 relative">
           {isPaletteOpen && (
-            <div className="absolute right-full mr-3 flex items-center gap-1.5 bg-white/80 backdrop-blur-md p-2 rounded-2xl shadow-lg border border-white animate-in slide-in-from-right-2 duration-300">
+            <div className="absolute right-full mr-3 flex items-center gap-1.5 bg-white/80 dark:bg-gray-800 backdrop-blur-md p-2 rounded-2xl shadow-lg border border-white dark:border-gray-600 animate-in slide-in-from-right-2 duration-300 z-10">
               {COLORS.stickyNotes.map(c => (
                 <button 
                   key={c}
@@ -70,7 +69,7 @@ export const ProjectPrecautions: React.FC<ProjectPrecautionsProps> = ({
               ))}
               <button 
                 onClick={handleCustomColor}
-                className="w-6 h-6 rounded-full border-2 border-dashed border-pink-300 flex items-center justify-center bg-white hover:bg-pink-50 transition-colors"
+                className="w-6 h-6 rounded-full border-2 border-dashed border-pink-300 flex items-center justify-center bg-white dark:bg-gray-700 hover:bg-pink-50 transition-colors"
                 title="輸入色號"
               >
                 <Plus size={12} className="text-pink-400" />
@@ -79,28 +78,28 @@ export const ProjectPrecautions: React.FC<ProjectPrecautionsProps> = ({
           )}
           <button 
             onClick={() => setIsPaletteOpen(!isPaletteOpen)}
-            className={`p-2 rounded-xl transition-all ${isPaletteOpen ? 'bg-white shadow-inner scale-90' : 'bg-white/40 hover:bg-white/60'}`}
+            className={`p-2 rounded-xl transition-all ${isPaletteOpen ? 'bg-white shadow-inner scale-90' : 'bg-white/40 dark:bg-white/10 hover:bg-white/60 dark:hover:bg-white/20'}`}
           >
-            <Palette size={20} className="text-black/40" />
+            <Palette size={20} className="text-black/40 dark:text-gray-300" />
           </button>
         </div>
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto max-h-[300px] pr-2 custom-scrollbar">
         {precautions.map((item, idx) => (
-          <div key={idx} className="flex items-center gap-3 group bg-white/40 p-3 rounded-2xl border border-white/20 hover:bg-white/60 transition-all">
+          <div key={idx} className="flex items-center gap-3 group bg-white/40 dark:bg-black/30 p-3 rounded-2xl border border-white/20 dark:border-white/5 hover:bg-white/60 dark:hover:bg-black/50 transition-all">
             <span className="text-xl">💡</span>
-            <p className="flex-1 text-sm font-medium" style={{ color: 'rgba(0,0,0,0.7)' }}>{item}</p>
+            <p className="flex-1 text-sm font-medium text-[#5c4b51]/90 dark:text-gray-300">{item}</p>
             <button 
               onClick={() => removeItem(idx)}
-              className="p-1 opacity-0 group-hover:opacity-100 text-black/20 hover:text-red-400 transition-all"
+              className="p-1 opacity-0 group-hover:opacity-100 text-black/20 dark:text-gray-500 hover:text-red-400 dark:hover:text-red-300 transition-all"
             >
               <Trash2 size={16} />
             </button>
           </div>
         ))}
         {precautions.length === 0 && (
-          <p className="text-center py-8 opacity-40 italic text-sm">還沒有小叮嚀喔 📝</p>
+          <p className="text-center py-8 opacity-40 dark:opacity-30 italic text-sm dark:text-gray-400">還沒有小叮嚀喔 📝</p>
         )}
       </div>
 
@@ -111,12 +110,11 @@ export const ProjectPrecautions: React.FC<ProjectPrecautionsProps> = ({
           onChange={(e) => setInputValue(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && addItem()}
           placeholder="新增小叮嚀..."
-          className="w-full bg-white/60 border-2 border-transparent focus:border-white/80 rounded-full px-6 py-3 text-sm focus:outline-none transition-all pr-12 font-medium placeholder-black/20"
-          style={{ color: 'rgba(0,0,0,0.8)' }}
+          className="w-full bg-white/60 dark:bg-black/30 border-2 border-transparent focus:border-white/80 dark:focus:border-gray-500 rounded-full px-6 py-3 text-sm focus:outline-none transition-all pr-12 font-medium placeholder-black/20 dark:placeholder-gray-500 text-[#5c4b51] dark:text-gray-200"
         />
         <button 
           onClick={addItem}
-          className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 text-black/40 p-2 rounded-full hover:bg-white transition-colors shadow-sm"
+          className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 dark:bg-gray-700 text-black/40 dark:text-gray-300 p-2 rounded-full hover:bg-white dark:hover:bg-gray-600 transition-colors shadow-sm"
         >
           <Plus size={18} />
         </button>
