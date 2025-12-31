@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, Flag, AlignLeft, CheckCircle2, Eye, Edit3, Link as LinkIcon, ExternalLink, Trash2, Plus, Globe, ImageIcon, Save, Tag, Check, Palette, Bell, Clock } from 'lucide-react';
+import { X, Calendar, Flag, AlignLeft, CheckCircle2, Eye, Edit3, Link as LinkIcon, ExternalLink, Trash2, Plus, Globe, ImageIcon, Save, Tag, Check, Palette, Bell, Clock, Activity } from 'lucide-react';
 import { Task, TaskPriority, TaskStatus, Project, Attachment, ResourceCategory, TaskTag, ReminderType } from '../types.ts';
 import { COLORS, TAG_PALETTE } from '../constants.tsx';
 import ReactMarkdown from 'react-markdown';
@@ -194,6 +194,30 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
               >
                 {Object.values(TaskPriority).map(p => <option key={p} value={p}>{p}</option>)}
               </select>
+            </div>
+          </div>
+
+          {/* 🍓 任務進度 (新增修復) */}
+          <div className="space-y-2 bg-white/50 p-4 rounded-2xl border border-pink-50 shadow-sm">
+            <div className="flex justify-between items-center">
+                <label className="text-xs font-bold text-pink-300 flex items-center gap-1 uppercase tracking-wider">
+                   <Activity size={14} /> 任務進度
+                </label>
+                <span className="text-sm font-black text-pink-500 bg-white px-2 py-0.5 rounded-lg shadow-sm border border-pink-100 min-w-[3rem] text-center">{task.progress}%</span>
+            </div>
+            <div className="relative pt-1">
+              <input 
+                  type="range" 
+                  min="0" 
+                  max="100" 
+                  step="5"
+                  value={task.progress} 
+                  onChange={(e) => onUpdate({ progress: parseInt(e.target.value) })}
+                  className="w-full h-2 bg-pink-100 rounded-lg appearance-none cursor-pointer accent-pink-500 hover:accent-pink-400 transition-all"
+                  style={{
+                    background: `linear-gradient(to right, #ff85b2 ${task.progress}%, #ffdeeb ${task.progress}%)`
+                  }}
+              />
             </div>
           </div>
           

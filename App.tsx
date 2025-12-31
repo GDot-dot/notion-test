@@ -613,15 +613,102 @@ const ProjectView: React.FC = () => {
 const App: React.FC = () => {
   const { state } = useProjects();
   
-  // 確保有專案 ID 可供導航，若無則使用預設值
-  const firstProjectId = state.projects.length > 0 ? state.projects[0].id : 'root-1';
+  // Find a default project ID to redirect to
+  const defaultProjectId = state.projects.length > 0 ? state.projects[0].id : 'root-1';
+  
+  // 🍓 優化：使用 useRef 來保存最新的 projects 資料
+  // 這樣做可以避免每次資料變更都重新啟動 setInterval，大幅減少效能浪費
+  const projectsRef = useRef(state.projects);
+  useEffect(() => {
+    projectsRef.current = state.projects;
+  }, [state.projects]);
+
+  // 🍓 任務提醒邏輯 (每 30 秒檢查一次)
+  useEffect(() => {
+    // 請求通知權限 (非強制，僅在可用時)
+    if ('Notification' in window && Notification.permission === 'default') {
+      // Notification.requestPermission(); 
+    }
+
+    const checkReminders = () => {
+      // 🛠️ Debug: 確保計時器有在跑 (測試用)
+      console.log('正在檢查任務提醒...', new Date().toLocaleTimeString());
+
+      // 檢查是否擁有通知權限
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+      const now = new Date();
+      const notifiedKey = 'melody_notified_tasks';
+      const notifiedMap = JSON.parse(localStorage.getItem(notifiedKey) || '{}');
+
+      const allTasks: Task[] = [];
+      const traverse = (projects: Project[]) => {
+        projects.forEach(p => {
+          allTasks.push(...p.tasks);
+          traverse(p.children);
+        });
+      };
+      
+      // 使用 ref 中最新的 projects 資料
+      traverse(projectsRef.current);
+
+      allTasks.forEach(task => {
+        // 如果任務已完成或沒有設定提醒，則跳過
+        if (task.status === TaskStatus.COMPLETED || !task.reminder || task.reminder.type === 'none') return;
+        
+        let triggerTime: Date | null = null;
+        // Task endDate is stored as ISO string.
+        const endDate = new Date(task.endDate);
+        
+        if (task.reminder.type === '1_day') {
+          triggerTime = addDays(endDate, -1);
+        } else if (task.reminder.type === '3_days') {
+          triggerTime = addDays(endDate, -3);
+        } else if (task.reminder.type === 'custom' && task.reminder.date) {
+          triggerTime = new Date(task.reminder.date);
+        }
+
+        if (triggerTime) {
+          const diffMinutes = differenceInMinutes(now, triggerTime);
+          
+          // 觸發條件：時間到了 (diff >= 0) 且在過去 60 分鐘內 (diff <= 60)
+          if (diffMinutes >= 0 && diffMinutes <= 60) {
+            const uniqueKey = `${task.id}_${task.reminder.type}`;
+            const lastNotified = notifiedMap[uniqueKey];
+            
+            // 24小時內不重複提醒
+            if (!lastNotified || (now.getTime() - lastNotified > 24 * 60 * 60 * 1000)) {
+               try {
+                 new Notification(`⏰ 任務提醒：${task.title}`, {
+                   body: `您的任務即將在 ${format(endDate, 'MM/dd')} 到期！\n目前進度：${task.progress}%`,
+                   icon: '/vite.svg' 
+                 });
+                 
+                 notifiedMap[uniqueKey] = now.getTime();
+                 localStorage.setItem(notifiedKey, JSON.stringify(notifiedMap));
+               } catch (e) {
+                 console.error("Notification failed:", e);
+               }
+            }
+          }
+        }
+      });
+    };
+
+    // 設定為每 30 秒檢查一次 (測試用，正式可改回 60 秒)
+    const intervalId = setInterval(checkReminders, 30000);
+    
+    // 首次執行
+    checkReminders(); 
+
+    return () => clearInterval(intervalId);
+  }, []); // 空依賴陣列：確保 setInterval 只會被建立一次，不會隨意重啟
 
   return (
     <Routes>
+      <Route path="/" element={<Navigate to={`/project/${defaultProjectId}/dashboard`} replace />} />
       <Route path="/project/:projectId/:view" element={<ProjectView />} />
-      <Route path="/project/:projectId" element={<Navigate to="dashboard" replace />} />
-      <Route path="/" element={<Navigate to={`/project/${firstProjectId}/dashboard`} replace />} />
-      <Route path="*" element={<Navigate to={`/project/${firstProjectId}/dashboard`} replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };
