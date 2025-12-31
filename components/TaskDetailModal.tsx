@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, Flag, AlignLeft, CheckCircle2, Eye, Edit3, Link as LinkIcon, ExternalLink, Trash2, Plus, Globe, ImageIcon, Save, Tag, Check, Palette } from 'lucide-react';
-import { Task, TaskPriority, TaskStatus, Project, Attachment, ResourceCategory, TaskTag } from '../types.ts';
+import { X, Calendar, Flag, AlignLeft, CheckCircle2, Eye, Edit3, Link as LinkIcon, ExternalLink, Trash2, Plus, Globe, ImageIcon, Save, Tag, Check, Palette, Bell, Clock } from 'lucide-react';
+import { Task, TaskPriority, TaskStatus, Project, Attachment, ResourceCategory, TaskTag, ReminderType } from '../types.ts';
 import { COLORS, TAG_PALETTE } from '../constants.tsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { format } from 'date-fns';
 
 interface TaskDetailModalProps {
   task: Task;
@@ -89,6 +90,27 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
     onUpdate({ tags: (task.tags || []).filter(t => t.name !== tagNameToRemove) });
   };
 
+  // ⏰ 提醒設定處理
+  const handleReminderChange = (type: ReminderType) => {
+    if (type === 'none') {
+      onUpdate({ reminder: undefined });
+    } else if (type === 'custom') {
+      // 預設為目前時間往後一小時
+      const now = new Date();
+      now.setHours(now.getHours() + 1);
+      const defaultIso = now.toISOString().slice(0, 16);
+      onUpdate({ reminder: { type, date: defaultIso } });
+    } else {
+      onUpdate({ reminder: { type } });
+    }
+  };
+
+  const handleCustomDateChange = (dateStr: string) => {
+    if (task.reminder && task.reminder.type === 'custom') {
+      onUpdate({ reminder: { ...task.reminder, date: dateStr } });
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex justify-end bg-black/20 backdrop-blur-sm animate-in fade-in duration-300" onClick={onClose}>
       <div 
@@ -138,6 +160,66 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
               >
                 {Object.values(TaskPriority).map(p => <option key={p} value={p}>{p}</option>)}
               </select>
+            </div>
+          </div>
+          
+          {/* 日期設定 (與提醒連動顯示) */}
+          <div className="grid grid-cols-2 gap-6">
+             <div className="space-y-2">
+              <label className="text-xs font-bold text-pink-300 flex items-center gap-1 uppercase tracking-wider"><Calendar size={12} /> 開始日期</label>
+              <input 
+                type="date"
+                value={task.startDate.split('T')[0]}
+                onChange={(e) => onUpdate({ startDate: new Date(e.target.value).toISOString() })}
+                className="w-full p-3 rounded-2xl border border-pink-50 text-sm font-bold text-[#5c4b51] focus:outline-none focus:border-pink-200"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-pink-300 flex items-center gap-1 uppercase tracking-wider"><Calendar size={12} /> 結束日期</label>
+              <input 
+                type="date"
+                value={task.endDate.split('T')[0]}
+                onChange={(e) => onUpdate({ endDate: new Date(e.target.value).toISOString() })}
+                className="w-full p-3 rounded-2xl border border-pink-50 text-sm font-bold text-[#5c4b51] focus:outline-none focus:border-pink-200"
+              />
+            </div>
+          </div>
+
+          {/* ⏰ 提醒設定 */}
+          <div className="space-y-3 bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
+            <label className="text-xs font-bold text-blue-400 flex items-center gap-1 uppercase tracking-wider">
+              <Bell size={12} /> 任務提醒小幫手
+              {!('Notification' in window) && <span className="text-[9px] text-red-400 ml-2">(此瀏覽器不支援通知)</span>}
+              {('Notification' in window && Notification.permission !== 'granted') && <span className="text-[9px] text-pink-400 ml-2 animate-pulse cursor-pointer hover:underline" onClick={() => Notification.requestPermission()}>點此開啟權限</span>}
+            </label>
+            <div className="flex flex-col gap-3">
+              <select 
+                value={task.reminder?.type || 'none'} 
+                onChange={(e) => handleReminderChange(e.target.value as ReminderType)} 
+                className="w-full p-3 rounded-xl border border-blue-100 text-sm font-bold text-[#5c4b51] focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
+              >
+                <option value="none">🔕 不用提醒我</option>
+                <option value="1_day">🗓️ 到期前 1 天</option>
+                <option value="3_days">🗓️ 到期前 3 天</option>
+                <option value="custom">⏰ 自訂時間...</option>
+              </select>
+              
+              {task.reminder?.type === 'custom' && (
+                <div className="flex items-center gap-2 animate-in slide-in-from-top-2">
+                  <Clock size={16} className="text-blue-300" />
+                  <input 
+                    type="datetime-local" 
+                    value={task.reminder.date || ''}
+                    onChange={(e) => handleCustomDateChange(e.target.value)}
+                    className="flex-1 p-2 rounded-xl border border-blue-100 text-sm text-[#5c4b51] font-bold bg-white focus:outline-none focus:border-blue-300"
+                  />
+                </div>
+              )}
+              {task.reminder?.type && task.reminder?.type !== 'none' && task.reminder?.type !== 'custom' && (
+                <div className="text-[10px] text-blue-400 font-medium pl-1">
+                  將在 <span className="font-bold">{format(new Date(task.endDate), 'MM/dd')}</span> 的前 {task.reminder.type === '1_day' ? '1' : '3'} 天發送通知
+                </div>
+              )}
             </div>
           </div>
 

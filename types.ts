@@ -27,6 +27,14 @@ export interface TaskTag {
   color: string;
 }
 
+// ⏰ 新增提醒設定型別
+export type ReminderType = 'none' | '1_day' | '3_days' | 'custom';
+
+export interface TaskReminder {
+  type: ReminderType;
+  date?: string; // ISO string for custom time
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -37,9 +45,10 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   color: string;
-  tags?: TaskTag[]; // 修改這裡：從 string[] 改為 TaskTag[]
+  tags?: TaskTag[]; 
   relatedProjectId?: string;
   attachments?: Attachment[];
+  reminder?: TaskReminder; // 新增提醒欄位
 }
 
 export interface Project {
