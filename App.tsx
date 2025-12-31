@@ -8,13 +8,13 @@ import { NotesArea } from './components/NotesArea';
 import { CalendarView } from './components/CalendarView';
 import { ProjectPrecautions } from './components/ProjectPrecautions';
 import { TaskDetailModal } from './components/TaskDetailModal';
-import { Project, ViewType, TaskStatus, Task, TaskPriority, TaskTag } from './types';
-import { COLORS } from './constants';
+import { ReminderPopup } from './components/ReminderPopup';
+import { Project, ViewType, TaskStatus, Task, TaskPriority } from './types.ts';
+import { COLORS } from './constants.tsx';
 import { useProjects } from './context/ProjectContext';
-// Fix: Use consolidated exports from local firebase lib
-import { auth, googleProvider, isConfigured, signInWithPopup, signOut } from './lib/firebase';
+import { auth, googleProvider, isConfigured, signInWithPopup, signOut } from './lib/firebase.ts';
 import { Plus, LayoutDashboard, Calendar, BarChart2, BookOpen, Trash2, Check, Edit3, Menu, LogIn, Loader2, Save, CloudCheck, Search, FolderHeart, Sparkles, CloudOff, Filter, Tag, Bell } from 'lucide-react';
-import { addDays, differenceInMinutes, format } from 'date-fns';
+import { addDays, format } from 'date-fns';
 
 // 🍓 搜尋面板組件
 const SearchPalette: React.FC<{ 
@@ -303,7 +303,7 @@ const ProjectView: React.FC = () => {
     updateProject(currentProject.id, { tasks: [...currentProject.tasks, newTask] });
     setEditingTaskId(newTask.id);
   };
-
+  
   const deleteTask = (taskId: string) => {
     if (!confirm('確定要刪除這個任務嗎？ 🍬')) return;
     const remover = (list: Project[]): Project[] => list.map(p => ({
@@ -317,7 +317,6 @@ const ProjectView: React.FC = () => {
   };
 
   const deleteProject = (id: string) => {
-    // 🍓 修正邏輯：完全移除刪除限制
     if (!confirm('確定要刪除目前這個計畫嗎？ 🥺')) return;
     
     const filter = (list: Project[]): Project[] => list.filter(p => p.id !== id).map(p => ({
@@ -327,7 +326,6 @@ const ProjectView: React.FC = () => {
     
     let next = filter(state.projects);
 
-    // 如果刪除後清空了，建立一個預設的，讓使用者有東西看，而不是卡在空白頁
     if (next.length === 0) {
       const defaultProject: Project = {
         id: Math.random().toString(36).substr(2, 9),
@@ -347,10 +345,8 @@ const ProjectView: React.FC = () => {
     dispatch({ type: 'UPDATE_PROJECTS', projects: next });
     syncToCloud(next);
     
-    // 導航邏輯：如果當前專案被刪除了（不在 next 裡面），導航到 next 的第一個
-    // 注意：findProject 是遞迴的，我們這裡使用它來檢查
     if (!findProject(currentProject.id, next)) {
-       navigate(`/project/${next[0].id}/dashboard`); // V6: history.push -> navigate
+       navigate(`/project/${next[0].id}/dashboard`);
     }
   };
 
@@ -378,18 +374,15 @@ const ProjectView: React.FC = () => {
     }
     dispatch({ type: 'UPDATE_PROJECTS', projects: next });
     syncToCloud(next);
-    navigate(`/project/${newP.id}/dashboard`); // V6: history.push -> navigate
+    navigate(`/project/${newP.id}/dashboard`);
   };
 
-  // 🍓 登入處理邏輯
   const handleLogin = async () => {
     if (!isConfigured) {
       alert("🍭 需要先設定 Firebase 金鑰喔！\n\n請前往 lib/firebase.ts 檔案，將您的 Firebase 配置填入 firebaseConfig 物件中。");
       return;
     }
-    
     if (!auth) return;
-
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
@@ -419,7 +412,7 @@ const ProjectView: React.FC = () => {
         selectedProjectId={currentProject.id} 
         isOpen={isSidebarOpen}
         onSelectProject={(id) => { 
-          navigate(`/project/${id}/${activeView}`); // V6: history.push -> navigate
+          navigate(`/project/${id}/${activeView}`);
           if (window.innerWidth < 768) setIsSidebarOpen(false); 
         }}
         onAddProject={addProject}
@@ -612,55 +605,46 @@ const ProjectView: React.FC = () => {
 
 const App: React.FC = () => {
   const { state } = useProjects();
-  
-  // Find a default project ID to redirect to
-  const defaultProjectId = state.projects.length > 0 ? state.projects[0].id : 'root-1';
-  
-  // 🍓 優化：使用 useRef 來保存最新的 projects 資料
-  // 這樣做可以避免每次資料變更都重新啟動 setInterval，大幅減少效能浪費
+  const [reminderTasks, setReminderTasks] = useState<Task[]>([]);
   const projectsRef = useRef(state.projects);
+  
+  const defaultProjectId = state.projects.length > 0 ? state.projects[0].id : 'root-1';
+
+  // 🍓 同步專案資料到 Ref，供計時器使用 (避免 Closure 陷阱)
   useEffect(() => {
     projectsRef.current = state.projects;
   }, [state.projects]);
 
-  // 🍓 任務提醒邏輯 (每 30 秒檢查一次)
+  // 🍓 任務提醒邏輯 (每 2 秒檢查一次，精確鎖定分鐘窗口)
   useEffect(() => {
-    // 請求通知權限 (非強制，僅在可用時)
     if ('Notification' in window && Notification.permission === 'default') {
-      // Notification.requestPermission(); 
+      // 靜默請求權限，或等待使用者在設定點擊
     }
 
     const checkReminders = () => {
-      // 🛠️ Debug: 確保計時器有在跑 (測試用)
-      console.log('--- 正在檢查任務提醒 ---', new Date().toLocaleTimeString());
-
-      // 檢查是否擁有通知權限
-      if (!('Notification' in window) || Notification.permission !== 'granted') {
-        console.warn('通知權限未開啟或瀏覽器不支援');
-        return;
-      }
-
       const now = new Date();
+      const nowTime = now.getTime();
       const notifiedKey = 'melody_notified_tasks';
       const notifiedMap = JSON.parse(localStorage.getItem(notifiedKey) || '{}');
-
+      
+      let hasUpdates = false;
+      const tasksToNotify: Task[] = [];
       const allTasks: Task[] = [];
-      const traverse = (projects: Project[]) => {
-        projects.forEach(p => {
+
+      const traverse = (list: Project[]) => {
+        list.forEach(p => {
           allTasks.push(...p.tasks);
           traverse(p.children);
         });
       };
       
-      // 使用 ref 中最新的 projects 資料
       traverse(projectsRef.current);
 
       allTasks.forEach(task => {
-        // 如果任務已完成或沒有設定提醒，則跳過
+        // 1. 基本過濾：任務已完成、無設定提醒、或提醒類型為 none -> 跳過
         if (task.status === TaskStatus.COMPLETED || !task.reminder || task.reminder.type === 'none') return;
         
         let triggerTime: Date | null = null;
-        // Task endDate is stored as ISO string.
         const endDate = new Date(task.endDate);
         
         if (task.reminder.type === '1_day') {
@@ -672,54 +656,83 @@ const App: React.FC = () => {
         }
 
         if (triggerTime) {
-          const diffMinutes = differenceInMinutes(now, triggerTime);
-          
-          // Debug specific task info
-          console.log(`任務 [${task.title}] - 觸發時間: ${triggerTime.toLocaleString()} (差 ${diffMinutes} 分鐘)`);
+          const triggerTs = triggerTime.getTime();
+          const diffMs = nowTime - triggerTs;
 
-          // 觸發條件：時間到了 (diff >= 0) 且在過去 60 分鐘內 (diff <= 60)
-          // 這意味著如果使用者 1 小時沒開網頁，錯過了時間，現在打開也會收到通知 (這是好事)
-          if (diffMinutes >= 0 && diffMinutes <= 60) {
-            const uniqueKey = `${task.id}_${task.reminder.type}`;
-            const lastNotified = notifiedMap[uniqueKey];
+          // 🍓 核心邏輯：
+          // 只有在「目標時間」開始後的 60 秒內 (0 <= diffMs < 60000) 才會觸發。
+          // 這樣保證了：
+          // 1. 時間還沒到 (diffMs < 0) -> 不觸發
+          // 2. 時間剛到 (0 <= diffMs < 60000) -> 觸發 (並檢查是否已通知過)
+          // 3. 時間已過 (diffMs >= 60000) -> 不再觸發 (過期不補發)
+          
+          if (diffMs >= 0 && diffMs < 60000) {
+            // 使用 [ID + 類型 + 時間戳] 作為唯一 Key
+            // 如果使用者修改時間，時間戳變動，Key 變動，就會重新觸發
+            const uniqueKey = `${task.id}_${task.reminder.type}_${triggerTs}`;
             
-            // 24小時內不重複提醒
-            if (!lastNotified || (now.getTime() - lastNotified > 24 * 60 * 60 * 1000)) {
-               try {
-                 console.log(`🔔 觸發通知: ${task.title}`);
-                 new Notification(`⏰ 任務提醒：${task.title}`, {
-                   body: `您的任務即將在 ${format(endDate, 'MM/dd')} 到期！\n目前進度：${task.progress}%`,
-                   icon: '/vite.svg' 
-                 });
-                 
-                 notifiedMap[uniqueKey] = now.getTime();
-                 localStorage.setItem(notifiedKey, JSON.stringify(notifiedMap));
-               } catch (e) {
-                 console.error("Notification failed:", e);
-               }
-            } else {
-               console.log(`   (已通知過，跳過)`);
+            // 檢查 LocalStorage 是否已經通知過這個 Key
+            if (!notifiedMap[uniqueKey]) {
+              tasksToNotify.push(task);
+
+              // A. 發送系統通知
+              if ('Notification' in window && Notification.permission === 'granted') {
+                 try {
+                   new Notification(`⏰ 任務提醒：${task.title}`, {
+                     body: `您的任務即將在 ${format(endDate, 'MM/dd HH:mm')} 到期！\n目前進度：${task.progress}%`,
+                     icon: '/vite.svg' 
+                   });
+                 } catch (e) { console.error('Notification error', e); }
+              }
+
+              // 記錄已通知，避免這一分鐘內重複跳出
+              notifiedMap[uniqueKey] = nowTime;
+              hasUpdates = true;
             }
           }
         }
       });
+
+      if (hasUpdates) {
+        localStorage.setItem(notifiedKey, JSON.stringify(notifiedMap));
+      }
+
+      // B. 觸發網頁彈窗 (In-App Popup)
+      if (tasksToNotify.length > 0) {
+        setReminderTasks(prev => {
+           // 避免重複 ID 加入
+           const existingIds = new Set(prev.map(t => t.id));
+           const newTasks = tasksToNotify.filter(t => !existingIds.has(t.id));
+           return [...prev, ...newTasks];
+        });
+      }
     };
 
-    // 設定為每 30 秒檢查一次 (測試用，正式可改回 60 秒)
-    const intervalId = setInterval(checkReminders, 30000);
+    // 每 2 秒檢查一次，確保不會錯過那一分鐘的窗口
+    const intervalId = setInterval(checkReminders, 2000);
     
-    // 首次執行
+    // 立即執行一次
     checkReminders(); 
 
     return () => clearInterval(intervalId);
-  }, []); // 空依賴陣列：確保 setInterval 只會被建立一次，不會隨意重啟
+  }, []); 
 
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to={`/project/${defaultProjectId}/dashboard`} replace />} />
-      <Route path="/project/:projectId/:view" element={<ProjectView />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<Navigate to={`/project/${defaultProjectId}/dashboard`} replace />} />
+        <Route path="/project/:projectId/:view" element={<ProjectView />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      
+      {/* 🍓 網頁內彈出提醒視窗 */}
+      {reminderTasks.length > 0 && (
+        <ReminderPopup 
+          tasks={reminderTasks} 
+          onClose={() => setReminderTasks([])} 
+        />
+      )}
+    </>
   );
 };
 
