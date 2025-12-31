@@ -1,0 +1,12 @@
+
+/* 基礎樣式重置 */
+body {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* 確保 Tailwind 未載入前也有基本背景色 */
+#root {
+  background-color: #fff5f8;
+}

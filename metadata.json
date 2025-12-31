@@ -1,0 +1,5 @@
+{
+  "name": "可愛三麗鷗風格專案管理 (Sanrio-style Project Manager)",
+  "description": "一個類似 Notion 的專案管理工具，提供專案資料夾、甘特圖、進度表、日曆及筆記功能，採用粉嫩可愛的三麗鷗視覺風格。",
+  "requestFramePermissions": []
+}

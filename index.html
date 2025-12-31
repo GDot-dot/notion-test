@@ -1,0 +1,102 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Melody Project Manager </title>
+  
+  <!-- 引入基礎 CSS -->
+  <link rel="stylesheet" href="./index.css">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Noto Sans TC', 'Kosugi Maru', sans-serif;
+      background-color: #fff5f8;
+      color: #5c4b51;
+      overflow-x: hidden;
+    }
+    .sanrio-pink { background-color: #ffdeeb; }
+    .sanrio-text-pink { color: #ff85b2; }
+    .sanrio-border-pink { border-color: #ffb8d1; }
+    .cute-shadow { box-shadow: 0 4px 14px 0 rgba(255, 184, 209, 0.39); }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #fff5f8; }
+    ::-webkit-scrollbar-thumb { background: #ffb8d1; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #ff85b2; }
+    
+    @media (max-width: 768px) {
+      .cute-shadow { box-shadow: 0 2px 8px 0 rgba(255, 184, 209, 0.2); }
+    }
+    
+    * { -webkit-tap-highlight-color: transparent; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    #root { min-height: 100vh; }
+
+    /* 🍓 Markdown 深度美化與顏色修正 */
+    .prose { 
+      color: #5c4b51 !important; 
+      max-width: none;
+    }
+    .prose h1 { font-size: 1.8rem; font-weight: 900; color: #ff6b9d !important; border-bottom: 2px dashed #ffe2e2; padding-bottom: 0.5rem; margin-top: 1.5rem; }
+    .prose h2 { font-size: 1.4rem; font-weight: 800; color: #ff85b2 !important; margin-top: 1.2rem; }
+    .prose h3 { font-size: 1.1rem; font-weight: 700; color: #ff99c8 !important; }
+    .prose p { margin-bottom: 1rem; line-height: 1.8; color: #5c4b51 !important; }
+    .prose ul, .prose ol { padding-left: 1.5rem; margin-bottom: 1rem; color: #5c4b51 !important; }
+    .prose li { margin-bottom: 0.5rem; }
+    .prose strong { color: #ff5291 !important; font-weight: 800; }
+    .prose blockquote { border-left: 4px solid #ffb8d1; padding-left: 1rem; font-style: italic; color: #ff85b2 !important; background: #fff9fb; border-radius: 0 12px 12px 0; padding: 1rem; }
+    .prose code { background: #fee2e2 !important; color: #ff5291 !important; padding: 2px 6px; border-radius: 6px; font-size: 0.9em; font-weight: 600; }
+    
+    /* 表格樣式 */
+    .prose table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; border-radius: 16px; overflow: hidden; box-shadow: 0 0 0 1px #ffe2e2; }
+    .prose th { background-color: #fff0f5; color: #ff85b2; padding: 12px; font-weight: 800; text-align: left; }
+    .prose td { padding: 12px; border-top: 1px solid #ffe2e2; color: #5c4b51; }
+    .prose tr:nth-child(even) { background-color: #fffcfd; }
+
+    /* 任務列表 */
+    .prose input[type="checkbox"] {
+      width: 1.2rem;
+      height: 1.2rem;
+      accent-color: #ff85b2;
+      margin-right: 0.5rem;
+      vertical-align: middle;
+    }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom": "https://esm.sh/react-dom@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react-router-dom": "https://esm.sh/react-router-dom@^6.22.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "date-fns": "https://esm.sh/date-fns@^4.1.0",
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "date-fns/": "https://esm.sh/date-fns@^4.1.0/",
+    "react-markdown": "https://esm.sh/react-markdown@^9.0.0",
+    "remark-gfm": "https://esm.sh/remark-gfm@^4.0.0",
+    "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+    "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js",
+    "firebase/storage": "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js",
+    "firebase/": "https://esm.sh/firebase@^12.7.0/",
+    "vite": "https://esm.sh/vite@^7.3.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="./index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
