@@ -5,9 +5,10 @@ import { COLORS } from '../constants.tsx';
 
 interface GanttChartProps {
   tasks: Task[];
+  onTaskClick?: (taskId: string) => void;
 }
 
-export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
+export const GanttChart: React.FC<GanttChartProps> = ({ tasks, onTaskClick }) => {
   if (tasks.length === 0) {
     return (
       <div className="h-48 flex items-center justify-center bg-white dark:bg-kuromi-card rounded-[32px] md:rounded-[40px] border-2 border-dashed border-pink-200 dark:border-gray-700 text-pink-300 dark:text-gray-500">
@@ -58,21 +59,23 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
 
   return (
     <div className="bg-white dark:bg-kuromi-card rounded-[32px] md:rounded-[40px] p-4 md:p-8 overflow-hidden cute-shadow border border-pink-100 dark:border-gray-700">
+      {/* 🍓 標題放大：text-lg md:text-xl */}
       <h2 className="text-lg md:text-xl font-bold text-pink-600 dark:text-kuromi-accent mb-6 md:border-none border-b border-pink-50 dark:border-gray-700 pb-4 md:pb-0 flex items-center gap-2">
-        <span className="text-xl md:text-2xl">❤️</span> 專案開發甘特圖
+        <span className="text-2xl">❤️</span> 專案開發甘特圖
       </h2>
       
       <div className="overflow-x-auto custom-scrollbar pb-4">
-        {/* 動態計算容器寬度，確保不會被切掉 */}
-        <div style={{ minWidth: `${Math.max(allDays.length * CELL_WIDTH, 600)}px` }}>
+        {/* 動態計算容器寬度 */}
+        <div style={{ minWidth: `${Math.max(allDays.length * CELL_WIDTH + 240, 800)}px` }}>
           {/* 表頭 */}
           <div className="flex mb-4 relative h-8 border-b border-pink-50 dark:border-gray-700">
-            <div className="w-32 md:w-48 flex-shrink-0 font-bold text-pink-400 dark:text-gray-400 text-xs md:text-sm pl-2 sticky left-0 bg-white dark:bg-kuromi-card z-20">任務名稱</div>
+            {/* 🍓 任務名稱欄位加寬：w-40 md:w-60，文字放大 text-xs md:text-sm */}
+            <div className="w-40 md:w-60 flex-shrink-0 font-bold text-pink-400 dark:text-gray-400 text-xs md:text-sm pl-2 sticky left-0 bg-white dark:bg-kuromi-card z-20">任務名稱</div>
             <div className="flex-1 relative">
               {headerDays.map((day, idx) => {
                 const leftPos = differenceInDays(day, rangeStart) * CELL_WIDTH;
                 return (
-                  <div key={idx} className="absolute text-[10px] md:text-[11px] font-bold text-pink-300 dark:text-gray-500 transform -translate-x-1/2" style={{ left: `${leftPos + (CELL_WIDTH/2)}px` }}>
+                  <div key={idx} className="absolute text-[10px] md:text-xs font-bold text-pink-300 dark:text-gray-500 transform -translate-x-1/2" style={{ left: `${leftPos + (CELL_WIDTH/2)}px` }}>
                     {format(day, 'MM/dd')}
                   </div>
                 );
@@ -94,19 +97,27 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
 
               // 根據優先度獲取背景淡色
               const priorityBgColor = COLORS.priority[task.priority] || '#f3f4f6';
-              // 根據優先度獲取進度條主色 (覆蓋原本的 task.color)
+              // 根據優先度獲取進度條主色
               const barColor = getPriorityBarColor(task.priority);
 
               return (
-                <div key={task.id} className="flex group items-center hover:bg-pink-50/30 dark:hover:bg-white/5 rounded-xl transition-colors">
-                  <div className="w-32 md:w-48 flex-shrink-0 sticky left-0 bg-white dark:bg-kuromi-card group-hover:bg-pink-50/10 dark:group-hover:bg-transparent z-20 pr-2">
-                    <div className="text-xs md:text-sm font-bold text-[#5c4b51] dark:text-gray-300 truncate" title={task.title}>{task.title}</div>
-                    <div className="text-[9px] md:text-[10px] text-pink-300 dark:text-gray-500 font-bold">{task.progress}% 完成</div>
+                <div 
+                  key={task.id} 
+                  className="flex group items-center hover:bg-pink-50/30 dark:hover:bg-white/5 rounded-xl transition-colors cursor-pointer"
+                  onClick={() => onTaskClick?.(task.id)}
+                >
+                  {/* 🍓 任務名稱欄位加寬：w-40 md:w-60 */}
+                  <div className="w-40 md:w-60 flex-shrink-0 sticky left-0 bg-white dark:bg-kuromi-card group-hover:bg-pink-50/10 dark:group-hover:bg-transparent z-20 pr-4">
+                    {/* 🍓 任務名稱文字放大: text-sm md:text-base */}
+                    <div className="text-sm md:text-base font-bold text-[#5c4b51] dark:text-gray-300 truncate" title={task.title}>{task.title}</div>
+                    {/* 🍓 進度文字放大: text-[10px] md:text-[11px] */}
+                    <div className="text-[10px] md:text-[11px] text-pink-300 dark:text-gray-500 font-bold">{task.progress}% 完成</div>
                   </div>
                   <div className="flex-1 relative h-6 md:h-8">
                     {/* 進度條背景軌道 */}
                     <div 
-                      className="absolute top-1 h-4 md:h-6 rounded-full transition-transform group-hover:scale-[1.01] cursor-pointer flex items-center justify-end pr-2 md:pr-3 overflow-hidden border border-white dark:border-gray-600 shadow-sm"
+                      className="absolute top-1 h-4 md:h-6 rounded-full transition-all group-hover:scale-[1.02] cursor-pointer flex items-center justify-end pr-2 md:pr-3 overflow-hidden border border-white dark:border-gray-600 shadow-sm"
+                      title={`${task.title} (${task.progress}%)`}
                       style={{ 
                         left: `${left}px`, 
                         width: `${width}px`,
@@ -127,7 +138,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
                       }}
                     >
                        {task.progress > 30 && (
-                          <span className="ml-2 text-[8px] font-black text-white/90 drop-shadow-md whitespace-nowrap">
+                          <span className="ml-2 text-[10px] font-black text-[#5c4b51] drop-shadow-sm whitespace-nowrap">
                             {task.progress}%
                           </span>
                        )}
@@ -141,7 +152,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
                             width: `${width}px`,
                         }}
                     >
-                        <span className="text-[8px] font-bold text-[#5c4b51] opacity-50 hidden sm:inline-block">{daysDiff}天</span>
+                        <span className="text-[10px] font-bold text-[#5c4b51] opacity-50 hidden sm:inline-block">{daysDiff}天</span>
                     </div>
                   </div>
                 </div>

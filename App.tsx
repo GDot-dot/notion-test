@@ -152,7 +152,7 @@ const TaskItem = React.memo(({ task, onToggleStatus, onEdit, onDelete }: {
         </div>
       </div>
       <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
-        <div className="px-3 py-1 rounded-full text-[10px] font-black border border-white/50 shadow-sm" style={{ backgroundColor: COLORS.status[task.status] }}>{task.status}</div>
+        <div className="px-3 py-1 rounded-full text-[10px] font-black border border-white/50 shadow-sm text-[#5c4b51]" style={{ backgroundColor: COLORS.status[task.status] }}>{task.status}</div>
         <span className="text-sm font-bold text-pink-500 min-w-[32px]">{task.progress}%</span>
         <button 
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
@@ -530,7 +530,7 @@ const ProjectView: React.FC = () => {
                 />
               </div>
               
-              <GanttChart tasks={filteredTasks} />
+              <GanttChart tasks={filteredTasks} onTaskClick={setEditingTaskId} />
               
               <div className="bg-white dark:bg-kuromi-card rounded-[32px] md:rounded-[40px] p-6 md:p-8 cute-shadow border border-pink-100 dark:border-gray-700">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
@@ -562,7 +562,7 @@ const ProjectView: React.FC = () => {
             </div>
           ) : (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {activeView === 'gantt' && <GanttChart tasks={filteredTasks} />}
+              {activeView === 'gantt' && <GanttChart tasks={filteredTasks} onTaskClick={setEditingTaskId} />}
               {activeView === 'calendar' && <CalendarView tasks={filteredTasks} />}
               {activeView === 'notes' && (
                 <NotesArea 
@@ -604,134 +604,24 @@ const ProjectView: React.FC = () => {
 
 const App: React.FC = () => {
   const { state } = useProjects();
-  const [reminderTasks, setReminderTasks] = useState<Task[]>([]);
-  const projectsRef = useRef(state.projects);
-  
-  const defaultProjectId = state.projects.length > 0 ? state.projects[0].id : 'root-1';
-
-  // 🍓 同步專案資料到 Ref，供計時器使用 (避免 Closure 陷阱)
-  useEffect(() => {
-    projectsRef.current = state.projects;
-  }, [state.projects]);
-
-  // 🍓 任務提醒邏輯 (每 2 秒檢查一次，精確鎖定分鐘窗口)
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      // 靜默請求權限，或等待使用者在設定點擊
-    }
-
-    const checkReminders = () => {
-      const now = new Date();
-      const nowTime = now.getTime();
-      const notifiedKey = 'melody_notified_tasks';
-      const notifiedMap = JSON.parse(localStorage.getItem(notifiedKey) || '{}');
-      
-      let hasUpdates = false;
-      const tasksToNotify: Task[] = [];
-      const allTasks: Task[] = [];
-
-      const traverse = (list: Project[]) => {
-        list.forEach(p => {
-          allTasks.push(...p.tasks);
-          traverse(p.children);
-        });
-      };
-      
-      traverse(projectsRef.current);
-
-      allTasks.forEach(task => {
-        // 1. 基本過濾：任務已完成、無設定提醒、或提醒類型為 none -> 跳過
-        if (task.status === TaskStatus.COMPLETED || !task.reminder || task.reminder.type === 'none') return;
-        
-        let triggerTime: Date | null = null;
-        const endDate = new Date(task.endDate);
-        
-        if (task.reminder.type === '1_day') {
-          triggerTime = addDays(endDate, -1);
-        } else if (task.reminder.type === '3_days') {
-          triggerTime = addDays(endDate, -3);
-        } else if (task.reminder.type === 'custom' && task.reminder.date) {
-          triggerTime = new Date(task.reminder.date);
-        }
-
-        if (triggerTime) {
-          const triggerTs = triggerTime.getTime();
-          const diffMs = nowTime - triggerTs;
-
-          // 🍓 核心邏輯：
-          // 只有在「目標時間」開始後的 60 秒內 (0 <= diffMs < 60000) 才會觸發。
-          // 這樣保證了：
-          // 1. 時間還沒到 (diffMs < 0) -> 不觸發
-          // 2. 時間剛到 (0 <= diffMs < 60000) -> 觸發 (並檢查是否已通知過)
-          // 3. 時間已過 (diffMs >= 60000) -> 不再觸發 (過期不補發)
-          
-          if (diffMs >= 0 && diffMs < 60000) {
-            // 使用 [ID + 類型 + 時間戳] 作為唯一 Key
-            // 如果使用者修改時間，時間戳變動，Key 變動，就會重新觸發
-            const uniqueKey = `${task.id}_${task.reminder.type}_${triggerTs}`;
-            
-            // 檢查 LocalStorage 是否已經通知過這個 Key
-            if (!notifiedMap[uniqueKey]) {
-              tasksToNotify.push(task);
-
-              // A. 發送系統通知
-              if ('Notification' in window && Notification.permission === 'granted') {
-                 try {
-                   new Notification(`⏰ 任務提醒：${task.title}`, {
-                     body: `您的任務即將在 ${format(endDate, 'MM/dd HH:mm')} 到期！\n目前進度：${task.progress}%`,
-                     icon: '/vite.svg' 
-                   });
-                 } catch (e) { console.error('Notification error', e); }
-              }
-
-              // 記錄已通知，避免這一分鐘內重複跳出
-              notifiedMap[uniqueKey] = nowTime;
-              hasUpdates = true;
-            }
-          }
-        }
-      });
-
-      if (hasUpdates) {
-        localStorage.setItem(notifiedKey, JSON.stringify(notifiedMap));
-      }
-
-      // B. 觸發網頁彈窗 (In-App Popup)
-      if (tasksToNotify.length > 0) {
-        setReminderTasks(prev => {
-           // 避免重複 ID 加入
-           const existingIds = new Set(prev.map(t => t.id));
-           const newTasks = tasksToNotify.filter(t => !existingIds.has(t.id));
-           return [...prev, ...newTasks];
-        });
-      }
-    };
-
-    // 每 2 秒檢查一次，確保不會錯過那一分鐘的窗口
-    const intervalId = setInterval(checkReminders, 2000);
-    
-    // 立即執行一次
-    checkReminders(); 
-
-    return () => clearInterval(intervalId);
-  }, []); 
 
   return (
-    <>
-      <Routes>
-        <Route path="/" element={<Navigate to={`/project/${defaultProjectId}/dashboard`} replace />} />
-        <Route path="/project/:projectId/:view" element={<ProjectView />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-      
-      {/* 🍓 網頁內彈出提醒視窗 */}
-      {reminderTasks.length > 0 && (
-        <ReminderPopup 
-          tasks={reminderTasks} 
-          onClose={() => setReminderTasks([])} 
-        />
-      )}
-    </>
+    <Routes>
+      <Route path="/project/:projectId/:view" element={<ProjectView />} />
+      <Route
+        path="/"
+        element={
+          state.projects.length > 0 ? (
+            <Navigate to={`/project/${state.projects[0].id}/dashboard`} replace />
+          ) : (
+            <div className="h-screen flex items-center justify-center bg-[#fff5f8] dark:bg-kuromi-bg">
+              <Loader2 className="w-12 h-12 text-pink-400 animate-spin" />
+            </div>
+          )
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 };
 

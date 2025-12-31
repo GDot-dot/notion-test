@@ -14,7 +14,7 @@ interface TaskDetailModalProps {
 }
 
 export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose, onUpdate }) => {
-  // 🍓 內容描述的編輯狀態管理
+  // 🍓 內容描述的編輯狀態 management
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [showPreviewDuringEdit, setShowPreviewDuringEdit] = useState(false);
   const [tempDesc, setTempDesc] = useState(task.description || '');
@@ -234,7 +234,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
             </div>
           </div>
           
-          {/* 日期設定 (與提醒連動顯示) */}
+          {/* 日期設定 - 🍓 完全匹配圖片樣式：深色背景與白色文字 */}
           <div className="grid grid-cols-2 gap-6">
              <div className="space-y-2">
               <label className="text-xs font-bold text-pink-300 dark:text-gray-500 flex items-center gap-1 uppercase tracking-wider"><Calendar size={12} /> 開始日期</label>
@@ -242,7 +242,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
                 type="date"
                 value={task.startDate.split('T')[0]}
                 onChange={(e) => onUpdate({ startDate: new Date(e.target.value).toISOString() })}
-                className="w-full p-3 rounded-2xl border border-pink-50 dark:border-gray-600 text-sm font-bold text-[#5c4b51] dark:text-gray-200 dark:bg-gray-800 focus:outline-none focus:border-pink-200 dark:focus:border-gray-500"
+                className="w-full p-4 rounded-[20px] border border-pink-100/50 dark:border-gray-700 text-sm font-bold text-[#5c4b51] dark:text-white bg-white dark:bg-[#1a1618] focus:outline-none focus:ring-2 focus:ring-pink-200 dark:focus:ring-pink-500/20 transition-all [color-scheme:dark]"
               />
             </div>
             <div className="space-y-2">
@@ -251,7 +251,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
                 type="date"
                 value={task.endDate.split('T')[0]}
                 onChange={(e) => onUpdate({ endDate: new Date(e.target.value).toISOString() })}
-                className="w-full p-3 rounded-2xl border border-pink-50 dark:border-gray-600 text-sm font-bold text-[#5c4b51] dark:text-gray-200 dark:bg-gray-800 focus:outline-none focus:border-pink-200 dark:focus:border-gray-500"
+                className="w-full p-4 rounded-[20px] border border-pink-100/50 dark:border-gray-700 text-sm font-bold text-[#5c4b51] dark:text-white bg-white dark:bg-[#1a1618] focus:outline-none focus:ring-2 focus:ring-pink-200 dark:focus:ring-pink-500/20 transition-all [color-scheme:dark]"
               />
             </div>
           </div>
@@ -271,7 +271,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
                     </button>
                   )}
                 </label>
-                {/* 🍓 新增測試按鈕 */}
+                {/* 🍓 測試按鈕 */}
                 <button 
                   onClick={sendTestNotification}
                   className="flex items-center gap-1 text-[10px] bg-blue-400 text-white px-2 py-1 rounded-lg font-bold hover:bg-blue-500 active:scale-95 transition-all shadow-sm"
@@ -299,7 +299,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
                     type="datetime-local" 
                     value={task.reminder.date || ''}
                     onChange={(e) => handleCustomDateChange(e.target.value)}
-                    className="flex-1 p-2 rounded-xl border border-blue-100 dark:border-blue-700 text-sm text-[#5c4b51] dark:text-gray-200 font-bold bg-white dark:bg-gray-800 focus:outline-none focus:border-blue-300"
+                    className="flex-1 p-2 rounded-xl border border-blue-100 dark:border-blue-700 text-sm text-[#5c4b51] dark:text-gray-200 font-bold bg-white dark:bg-gray-800 focus:outline-none focus:border-blue-300 [color-scheme:dark]"
                   />
                 </div>
               )}
@@ -311,7 +311,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
             </div>
           </div>
 
-          {/* 🍓 標籤管理區域 (更新版) */}
+          {/* 🍓 標籤管理區域 */}
           <div className="space-y-3">
             <label className="text-xs font-bold text-pink-300 dark:text-gray-500 flex items-center gap-1 uppercase tracking-wider"><Tag size={12} /> 標籤 (Tags)</label>
             <div className="bg-pink-50/20 dark:bg-white/5 p-3 rounded-2xl border border-pink-50 dark:border-gray-700 space-y-3">
@@ -351,7 +351,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
                   <button onClick={handleAddTag} className="bg-pink-100 dark:bg-gray-700 text-pink-500 dark:text-gray-300 px-3 rounded-xl hover:bg-pink-200 dark:hover:bg-gray-600 transition-colors"><Plus size={16} /></button>
                 </div>
 
-                {/* 顏色選擇器 (可展開) */}
+                {/* 顏色選擇器 */}
                 {isPaletteOpen && (
                   <div className="grid grid-cols-8 gap-2 bg-white dark:bg-gray-800 p-3 rounded-xl border border-pink-100 dark:border-gray-600 shadow-sm animate-in zoom-in-95 duration-200">
                     {TAG_PALETTE.map(color => (
@@ -393,7 +393,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
             </div>
           </div>
 
-          {/* 🍓 內容描述區域 (更新為 Markdown 豐富功能) */}
+          {/* 內容描述區域 */}
           <div className="space-y-4 flex-1 flex flex-col min-h-[400px]">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-pink-300 dark:text-gray-500 flex items-center gap-1 uppercase tracking-wider"><AlignLeft size={14} /> 任務內容描述</label>
