@@ -616,22 +616,25 @@ const App: React.FC = () => {
   // Find a default project ID to redirect to
   const defaultProjectId = state.projects.length > 0 ? state.projects[0].id : 'root-1';
   
-  // 🍓 任務提醒邏輯 (每 10 秒檢查一次)
+  // 🍓 優化：使用 useRef 來保存最新的 projects 資料
+  // 這樣做可以避免每次資料變更都重新啟動 setInterval，大幅減少效能浪費
+  const projectsRef = useRef(state.projects);
+  useEffect(() => {
+    projectsRef.current = state.projects;
+  }, [state.projects]);
+
+  // 🍓 任務提醒邏輯 (每 60 秒檢查一次)
   useEffect(() => {
     // 請求通知權限 (非強制，僅在可用時)
     if ('Notification' in window && Notification.permission === 'default') {
-      // 瀏覽器可能會阻擋這個請求，除非是在用戶互動後
       // Notification.requestPermission(); 
     }
 
     const checkReminders = () => {
-      // 🛠️ Debug: 確保計時器有在跑
-      console.log('正在檢查任務提醒...', new Date().toLocaleTimeString());
-
+      // 檢查是否擁有通知權限
       if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
       const now = new Date();
-      // 使用 localStorage 避免重複發送，記錄格式：taskId_reminderType_timestamp
       const notifiedKey = 'melody_notified_tasks';
       const notifiedMap = JSON.parse(localStorage.getItem(notifiedKey) || '{}');
 
@@ -642,15 +645,16 @@ const App: React.FC = () => {
           traverse(p.children);
         });
       };
-      traverse(state.projects);
+      
+      // 使用 ref 中最新的 projects 資料
+      traverse(projectsRef.current);
 
       allTasks.forEach(task => {
         // 如果任務已完成或沒有設定提醒，則跳過
         if (task.status === TaskStatus.COMPLETED || !task.reminder || task.reminder.type === 'none') return;
         
         let triggerTime: Date | null = null;
-        // ParseISO handles ISO strings correctly (e.g. 2023-10-27T10:00:00.000Z)
-        // Note: Task endDate is stored as ISO string.
+        // Task endDate is stored as ISO string.
         const endDate = new Date(task.endDate);
         
         if (task.reminder.type === '1_day') {
@@ -658,28 +662,25 @@ const App: React.FC = () => {
         } else if (task.reminder.type === '3_days') {
           triggerTime = addDays(endDate, -3);
         } else if (task.reminder.type === 'custom' && task.reminder.date) {
-          // 自訂時間存的是 ISO 格式的本地時間字串 (如 2023-10-27T15:30)
           triggerTime = new Date(task.reminder.date);
         }
 
         if (triggerTime) {
-          // 檢查是否到達時間 (目前時間 >= 觸發時間) 且 尚未過期太久 (例如 1 小時內，避免舊任務跳通知)
           const diffMinutes = differenceInMinutes(now, triggerTime);
           
           // 觸發條件：時間到了 (diff >= 0) 且在過去 60 分鐘內 (diff <= 60)
           if (diffMinutes >= 0 && diffMinutes <= 60) {
             const uniqueKey = `${task.id}_${task.reminder.type}`;
-            // 檢查是否已經通知過 (為了避免每分鐘都跳，我們檢查是否在今天已經通知過，或者使用簡單的布林值)
-            // 這裡簡單實作：如果這個唯一 key 存在且時間差小於 24 小時，就不再通知
             const lastNotified = notifiedMap[uniqueKey];
+            
+            // 24小時內不重複提醒
             if (!lastNotified || (now.getTime() - lastNotified > 24 * 60 * 60 * 1000)) {
-               // 發送通知
                try {
                  new Notification(`⏰ 任務提醒：${task.title}`, {
                    body: `您的任務即將在 ${format(endDate, 'MM/dd')} 到期！\n目前進度：${task.progress}%`,
-                   icon: '/vite.svg' // 使用預設 icon 或專案 icon
+                   icon: '/vite.svg' 
                  });
-                 // 更新記錄
+                 
                  notifiedMap[uniqueKey] = now.getTime();
                  localStorage.setItem(notifiedKey, JSON.stringify(notifiedMap));
                } catch (e) {
@@ -691,11 +692,14 @@ const App: React.FC = () => {
       });
     };
 
-    const intervalId = setInterval(checkReminders, 10000); // 每 10 秒檢查一次 (測試用)
-    checkReminders(); // 初始檢查
+    // 設定為每 60 秒檢查一次 (正式環境設定)
+    const intervalId = setInterval(checkReminders, 60000);
+    
+    // 首次執行
+    checkReminders(); 
 
     return () => clearInterval(intervalId);
-  }, [state.projects]);
+  }, []); // 空依賴陣列：確保 setInterval 只會被建立一次，不會隨意重啟
 
   return (
     <Routes>

@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
 import { Project } from '../types.ts';
 import { INITIAL_PROJECTS } from '../constants.tsx';
 // Fix: Import auth utilities from local firebase lib to resolve missing member errors
@@ -72,6 +72,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     projects: JSON.parse(localStorage.getItem('melody_local_data') || JSON.stringify(INITIAL_PROJECTS))
   });
 
+  // 用於防抖動 (Debounce) 的 Timer Ref
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // 🍓 核心修正：監聽登入狀態與處理載入標記
   useEffect(() => {
     // 情況 A: 如果根本沒有設定 Firebase API Key
@@ -97,7 +100,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     
     dispatch({ type: 'SET_LOADING', isLoading: true });
     const unsubDoc = onSnapshot(doc(db, 'users', state.user.uid), (snapshot) => {
-      if (snapshot.exists()) {
+      // 只有當不是本地正在同步時，才接收遠端更新，避免打字衝突
+      if (!timeoutRef.current && snapshot.exists()) {
         const data = snapshot.data();
         dispatch({ 
           type: 'SET_DATA', 
@@ -115,27 +119,38 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => unsubDoc();
   }, [state.user]);
 
-  // 同步邏輯
+  // 同步邏輯 (加入 2 秒防抖動)
   const syncToCloud = useCallback(async (newProjects: Project[], newLogo?: string, newName?: string) => {
-    // 始終先更新本地快取
+    // 1. 始終先更新本地快取 (保持介面反應快速)
     localStorage.setItem('melody_local_data', JSON.stringify(newProjects));
 
     if (!state.user || !db) return;
 
+    // 2. 設定同步狀態為 true (顯示 loading spinner)
     dispatch({ type: 'SET_SYNCING', isSyncing: true });
-    try {
-      const now = new Date().toISOString();
-      await setDoc(doc(db, 'users', state.user.uid), { 
-        projects: newProjects,
-        workspaceLogo: newLogo || state.workspaceLogo,
-        workspaceName: newName || state.workspaceName,
-        lastUpdated: now
-      }, { merge: true });
-    } catch (e) {
-      console.error("Sync Error:", e);
-    } finally {
-      setTimeout(() => dispatch({ type: 'SET_SYNCING', isSyncing: false }), 800);
+
+    // 3. 如果有正在等待的寫入排程，先清除它
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
     }
+
+    // 4. 設定新的延遲寫入排程 (2秒後執行)
+    timeoutRef.current = setTimeout(async () => {
+      try {
+        const now = new Date().toISOString();
+        await setDoc(doc(db, 'users', state.user.uid), { 
+          projects: newProjects,
+          workspaceLogo: newLogo || state.workspaceLogo,
+          workspaceName: newName || state.workspaceName,
+          lastUpdated: now
+        }, { merge: true });
+      } catch (e) {
+        console.error("Sync Error:", e);
+      } finally {
+        dispatch({ type: 'SET_SYNCING', isSyncing: false });
+        timeoutRef.current = null;
+      }
+    }, 2000); // 延遲 2000 毫秒
   }, [state.user, state.workspaceLogo, state.workspaceName]);
 
   return (
