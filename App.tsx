@@ -1,18 +1,18 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
-import { Sidebar } from './components/Sidebar.tsx';
-import { GanttChart } from './components/GanttChart.tsx';
-import { ProgressBoard } from './components/ProgressBoard.tsx';
-import { NotesArea } from './components/NotesArea.tsx';
-import { CalendarView } from './components/CalendarView.tsx';
-import { ProjectPrecautions } from './components/ProjectPrecautions.tsx';
-import { TaskDetailModal } from './components/TaskDetailModal.tsx';
-import { Project, ViewType, TaskStatus, Task, TaskPriority, TaskTag } from './types.ts';
-import { COLORS } from './constants.tsx';
-import { useProjects } from './context/ProjectContext.tsx';
+import { Switch, Route, Redirect, useParams, useHistory } from 'react-router-dom';
+import { Sidebar } from './components/Sidebar';
+import { GanttChart } from './components/GanttChart';
+import { ProgressBoard } from './components/ProgressBoard';
+import { NotesArea } from './components/NotesArea';
+import { CalendarView } from './components/CalendarView';
+import { ProjectPrecautions } from './components/ProjectPrecautions';
+import { TaskDetailModal } from './components/TaskDetailModal';
+import { Project, ViewType, TaskStatus, Task, TaskPriority, TaskTag } from './types';
+import { COLORS } from './constants';
+import { useProjects } from './context/ProjectContext';
 // Fix: Use consolidated exports from local firebase lib
-import { auth, googleProvider, isConfigured, signInWithPopup, signOut } from './lib/firebase.ts';
-import { Plus, LayoutDashboard, Calendar, BarChart2, BookOpen, Trash2, Check, Edit3, Menu, LogIn, ShieldAlert, Loader2, Save, CloudCheck, Search, X, FolderHeart, Sparkles, CloudOff, Filter, Tag } from 'lucide-react';
+import { auth, googleProvider, isConfigured, signInWithPopup, signOut } from './lib/firebase';
+import { Plus, LayoutDashboard, Calendar, BarChart2, BookOpen, Trash2, Check, Edit3, Menu, LogIn, Loader2, Save, CloudCheck, Search, FolderHeart, Sparkles, CloudOff, Filter, Tag } from 'lucide-react';
 import { addDays } from 'date-fns';
 
 // 🍓 搜尋面板組件
@@ -165,7 +165,7 @@ const TaskItem = React.memo(({ task, onToggleStatus, onEdit, onDelete }: {
 const ProjectView: React.FC = () => {
   const { projectId, view } = useParams<{ projectId: string, view: ViewType }>();
   const { state, dispatch, syncToCloud } = useProjects();
-  const navigate = useNavigate();
+  const history = useHistory();
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -313,19 +313,41 @@ const ProjectView: React.FC = () => {
   };
 
   const deleteProject = (id: string) => {
-    if (state.projects.length === 1 && !state.projects[0].parentId) {
-      alert("至少需要保留一個計畫喔！🍭");
-      return;
-    }
+    // 🍓 修正邏輯：完全移除刪除限制
     if (!confirm('確定要刪除目前這個計畫嗎？ 🥺')) return;
+    
     const filter = (list: Project[]): Project[] => list.filter(p => p.id !== id).map(p => ({
       ...p,
       children: filter(p.children)
     }));
-    const next = filter(state.projects);
+    
+    let next = filter(state.projects);
+
+    // 如果刪除後清空了，建立一個預設的，讓使用者有東西看，而不是卡在空白頁
+    if (next.length === 0) {
+      const defaultProject: Project = {
+        id: Math.random().toString(36).substr(2, 9),
+        name: '我的新計畫 🎀',
+        parentId: null,
+        notes: '# 歡迎來到 Melody 專案管理 🍓\n\n這裡是您的新起點！',
+        precautions: ['試著新增一些任務吧！', '可以更換專案 Logo 喔'],
+        precautionsColor: COLORS.stickyNotes[Math.floor(Math.random() * COLORS.stickyNotes.length)],
+        tasks: [],
+        children: [],
+        logoUrl: '✨',
+        attachments: []
+      };
+      next = [defaultProject];
+    }
+
     dispatch({ type: 'UPDATE_PROJECTS', projects: next });
     syncToCloud(next);
-    navigate('/');
+    
+    // 導航邏輯：如果當前專案被刪除了（不在 next 裡面），導航到 next 的第一個
+    // 注意：findProject 是遞迴的，我們這裡使用它來檢查
+    if (!findProject(currentProject.id, next)) {
+       history.push(`/project/${next[0].id}/dashboard`);
+    }
   };
 
   const addProject = (parentId: string | null) => {
@@ -352,7 +374,7 @@ const ProjectView: React.FC = () => {
     }
     dispatch({ type: 'UPDATE_PROJECTS', projects: next });
     syncToCloud(next);
-    navigate(`/project/${newP.id}/dashboard`);
+    history.push(`/project/${newP.id}/dashboard`);
   };
 
   // 🍓 登入處理邏輯
@@ -392,7 +414,7 @@ const ProjectView: React.FC = () => {
         }}
         selectedProjectId={currentProject.id} 
         isOpen={isSidebarOpen}
-        onSelectProject={(id) => { navigate(`/project/${id}/${activeView}`); if (window.innerWidth < 768) setIsSidebarOpen(false); }}
+        onSelectProject={(id) => { history.push(`/project/${id}/${activeView}`); if (window.innerWidth < 768) setIsSidebarOpen(false); }}
         onAddProject={addProject}
       />
 
@@ -461,7 +483,7 @@ const ProjectView: React.FC = () => {
             { id: 'calendar', label: '日期表', icon: <Calendar size={18} /> },
             { id: 'notes', label: '設定', icon: <BookOpen size={18} /> },
           ].map(v => (
-            <button key={v.id} onClick={() => navigate(`/project/${currentProject.id}/${v.id}`)} className={`flex items-center gap-2 px-5 md:px-8 py-2 md:py-3 rounded-xl md:rounded-[20px] font-bold transition-all ${activeView === v.id ? 'bg-pink-500 text-white shadow-xl translate-y-[-2px]' : 'text-pink-300 bg-white/50 hover:bg-pink-50'}`}>
+            <button key={v.id} onClick={() => history.push(`/project/${currentProject.id}/${v.id}`)} className={`flex items-center gap-2 px-5 md:px-8 py-2 md:py-3 rounded-xl md:rounded-[20px] font-bold transition-all ${activeView === v.id ? 'bg-pink-500 text-white shadow-xl translate-y-[-2px]' : 'text-pink-300 bg-white/50 hover:bg-pink-50'}`}>
               {v.icon} {v.label}
             </button>
           ))}
@@ -563,7 +585,7 @@ const ProjectView: React.FC = () => {
           projects={state.projects} 
           onClose={() => setIsSearchOpen(false)} 
           onSelect={(id, type) => {
-            navigate(`/project/${id}/dashboard`);
+            history.push(`/project/${id}/dashboard`);
             setIsSearchOpen(false);
           }}
         />
@@ -588,11 +610,15 @@ const App: React.FC = () => {
   const defaultProjectId = state.projects.length > 0 ? state.projects[0].id : 'root-1';
 
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to={`/project/${defaultProjectId}/dashboard`} replace />} />
-      <Route path="/project/:projectId/:view" element={<ProjectView />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <Switch>
+      <Route exact path="/">
+        <Redirect to={`/project/${defaultProjectId}/dashboard`} />
+      </Route>
+      <Route path="/project/:projectId/:view" component={ProjectView} />
+      <Route path="*">
+        <Redirect to="/" />
+      </Route>
+    </Switch>
   );
 };
 
