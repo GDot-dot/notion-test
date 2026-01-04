@@ -15,7 +15,7 @@ import { Project, ViewType, TaskStatus, Task, TaskPriority } from './types.ts';
 import { COLORS } from './constants.tsx';
 import { useProjects } from './context/ProjectContext.tsx';
 import { auth, googleProvider, isConfigured, signInWithPopup, signOut } from './lib/firebase.ts';
-import { Plus, LayoutDashboard, LayoutGrid, Calendar, BarChart2, BookOpen, Trash2, Check, Edit3, Menu, LogIn, Loader2, Save, CloudCheck, Search, FolderHeart, Sparkles, CloudOff, Filter, Tag, Bell, X, ChevronRight, RotateCcw, Cloud, GripVertical, Laptop } from 'lucide-react';
+import { Plus, LayoutDashboard, LayoutGrid, Calendar, BarChart2, BookOpen, Trash2, Check, Edit3, Menu, LogIn, Loader2, Save, CloudCheck, Search, FolderHeart, Sparkles, CloudOff, Filter, Tag, Bell, X, ChevronRight, RotateCcw, Cloud, GripVertical, Laptop, CheckCircle2 } from 'lucide-react';
 import { addDays, format, isBefore } from 'date-fns';
 import {
   DndContext,
@@ -122,37 +122,107 @@ const shouldShowBell = (task: Task) => {
   return false;
 };
 
-const SearchPalette: React.FC<{ projects: Project[], onClose: () => void, onSelect: (id: string) => void }> = ({ projects, onClose, onSelect }) => {
+// 🍓 增強後的搜尋結果類型
+interface SearchResult {
+  type: 'project' | 'task';
+  id: string;
+  name: string;
+  icon: string;
+  parentProjectId: string;
+  parentProjectName?: string;
+}
+
+const SearchPalette: React.FC<{ 
+  projects: Project[], 
+  onClose: () => void, 
+  onSelect: (id: string, type: 'project' | 'task', parentId: string) => void 
+}> = ({ projects, onClose, onSelect }) => {
   const [query, setQuery] = useState('');
+  
   const results = useMemo(() => {
     if (!query.trim()) return [];
-    const found: Project[] = [];
-    const search = (list: Project[]) => {
+    const found: SearchResult[] = [];
+    
+    const searchRecursive = (list: Project[]) => {
       list.forEach(p => {
-        if (p.name.toLowerCase().includes(query.toLowerCase())) found.push(p);
-        search(p.children);
+        // 1. 搜尋計畫名稱
+        if (p.name.toLowerCase().includes(query.toLowerCase())) {
+          found.push({ 
+            type: 'project', 
+            id: p.id, 
+            name: p.name, 
+            icon: p.logoUrl || '📁', 
+            parentProjectId: p.id 
+          });
+        }
+        
+        // 2. 搜尋任務標題
+        p.tasks.forEach(t => {
+          if (t.title.toLowerCase().includes(query.toLowerCase())) {
+            found.push({ 
+              type: 'task', 
+              id: t.id, 
+              name: t.title, 
+              icon: '🍭', 
+              parentProjectId: p.id,
+              parentProjectName: p.name
+            });
+          }
+        });
+        
+        searchRecursive(p.children);
       });
     };
-    search(projects);
+    
+    searchRecursive(projects);
     return found;
   }, [query, projects]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] px-4 bg-pink-900/20 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-xl bg-white dark:bg-kuromi-card rounded-[32px] shadow-2xl overflow-hidden border-4 border-pink-100 dark:border-gray-700 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] px-4 backdrop-blur-md bg-black/5" onClick={onClose}>
+      <div className="w-full max-w-xl bg-white/95 dark:bg-kuromi-card/95 rounded-[32px] shadow-2xl overflow-hidden border border-white/20 dark:border-gray-700 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
         <div className="p-6 border-b border-pink-50 dark:border-gray-700 flex items-center gap-4">
           <Search className="text-pink-400" size={24} />
-          <input autoFocus placeholder="搜尋計畫名稱... 🍓" className="flex-1 text-xl font-bold bg-transparent border-none focus:outline-none text-[#5c4b51] dark:text-gray-200 placeholder-pink-200" value={query} onChange={e => setQuery(e.target.value)} />
+          <input 
+            autoFocus 
+            placeholder="搜尋計畫或任務... 🍰" 
+            className="flex-1 text-xl font-bold bg-transparent border-none focus:outline-none text-[#5c4b51] dark:text-gray-200 placeholder-pink-200" 
+            value={query} 
+            onChange={e => setQuery(e.target.value)} 
+          />
           <button onClick={onClose} className="p-2 hover:bg-pink-50 dark:hover:bg-gray-700 rounded-full text-pink-200 transition-colors"><X size={20} /></button>
         </div>
         <div className="max-h-[60vh] overflow-y-auto p-4 space-y-2 no-scrollbar">
-          {results.length > 0 ? results.map(p => (
-            <div key={p.id} onClick={() => onSelect(p.id)} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-pink-50 dark:hover:bg-white/5 cursor-pointer transition-all group">
-              <div className="w-10 h-10 bg-pink-50 dark:bg-gray-800 rounded-xl flex items-center justify-center text-xl shadow-sm border border-white dark:border-gray-700">{p.logoUrl || '📁'}</div>
-              <div className="flex-1"><div className="font-bold text-[#5c4b51] dark:text-gray-200 group-hover:text-pink-500">{p.name}</div></div>
+          {results.length > 0 ? results.map(res => (
+            <div 
+              key={res.type + res.id} 
+              onClick={() => onSelect(res.id, res.type, res.parentProjectId)} 
+              className="flex items-center gap-4 p-4 rounded-2xl hover:bg-pink-50/50 dark:hover:bg-white/5 cursor-pointer transition-all group border border-transparent hover:border-pink-100 dark:hover:border-white/10"
+            >
+              <div className="w-10 h-10 bg-white dark:bg-gray-800 rounded-xl flex items-center justify-center text-xl shadow-sm border border-pink-50 dark:border-gray-700">
+                {res.icon}
+              </div>
+              <div className="flex-1">
+                <div className="font-bold text-[#5c4b51] dark:text-gray-200 group-hover:text-pink-500 flex items-center gap-2">
+                  {res.name}
+                  {res.type === 'task' && (
+                    <span className="text-[10px] bg-pink-100 dark:bg-pink-900/30 text-pink-500 px-2 py-0.5 rounded-full font-black">任務</span>
+                  )}
+                </div>
+                {res.type === 'task' && res.parentProjectName && (
+                  <div className="text-[10px] text-pink-300 dark:text-gray-500 font-bold">來自: {res.parentProjectName}</div>
+                )}
+              </div>
               <ChevronRight size={18} className="text-pink-100 group-hover:text-pink-300" />
             </div>
-          )) : query.trim() ? <div className="py-12 text-center text-pink-200 italic font-bold">找不計畫喔 🍬</div> : <div className="py-12 text-center text-pink-200 italic font-bold">輸入關鍵字開始搜尋 🍰</div>}
+          )) : query.trim() ? (
+            <div className="py-12 text-center text-pink-200 italic font-bold">找不到相關結果喔 🍬</div>
+          ) : (
+            <div className="py-12 text-center text-pink-200 italic font-bold flex flex-col items-center gap-2">
+              <Sparkles size={32} className="opacity-30" />
+              <span>輸入關鍵字開始全域搜尋 🍰</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -294,18 +364,16 @@ const ProjectView: React.FC = () => {
         
         if (shouldTrigger) {
           tasksToNotify.push(task);
-          // 🍓 修復部署錯誤：Task 不包含 logoUrl，改用固定字串或專案標誌
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification(`🎀 Melody 任務提醒`, {
               body: `任務「${task.title}」時間快到囉！🍭`,
-              // 移除錯誤的 task.logoUrl 引用
             });
           }
           const newHistory = [...(task.remindedHistory || []), historyKey];
           updateTask(task.id, { remindedHistory: newHistory });
         }
       });
-      if (tasksToNotify.length > 0) setActiveReminders((prev) => [...prev, ...tasksToNotify]);
+      if (tasksToNotify.length > 0) setActiveReminders((prev: Task[]) => [...prev, ...tasksToNotify]);
     };
     const timer = setInterval(checkReminders, 30000);
     checkReminders();
@@ -468,7 +536,25 @@ const ProjectView: React.FC = () => {
           )}
         </div>
       </main>
-      {isSearchOpen && <SearchPalette projects={state.projects} onClose={() => setIsSearchOpen(false)} onSelect={(id) => { navigate(`/project/${id}/dashboard`); setIsSearchOpen(false); }} />}
+      
+      {/* 🍓 全域搜尋介面 */}
+      {isSearchOpen && (
+        <SearchPalette 
+          projects={state.projects} 
+          onClose={() => setIsSearchOpen(false)} 
+          onSelect={(id, type, parentId) => { 
+            if (type === 'project') {
+              navigate(`/project/${id}/dashboard`);
+            } else {
+              // 如果是任務，先跳轉到所屬專案，再開啟編輯彈窗
+              navigate(`/project/${parentId}/dashboard`);
+              setEditingTaskId(id);
+            }
+            setIsSearchOpen(false); 
+          }} 
+        />
+      )}
+
       {editingTaskId && aggregatedTasks.find(t => t.id === editingTaskId) && (
         <TaskDetailModal task={aggregatedTasks.find(t => t.id === editingTaskId)!} allProjects={state.projects} onClose={() => setEditingTaskId(null)} onUpdate={(up) => updateTask(editingTaskId, up)} />
       )}
