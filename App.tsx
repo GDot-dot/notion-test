@@ -8,6 +8,7 @@ import { CalendarView } from './components/CalendarView';
 import { ProjectPrecautions } from './components/ProjectPrecautions';
 import { TaskDetailModal } from './components/TaskDetailModal';
 import { ReminderPopup } from './components/ReminderPopup';
+import { Celebration } from './components/Celebration';
 import { Project, ViewType, TaskStatus, Task, TaskPriority } from './types.ts';
 import { COLORS } from './constants.tsx';
 import { useProjects } from './context/ProjectContext';
@@ -172,6 +173,7 @@ const ProjectView: React.FC = () => {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isCelebrating, setIsCelebrating] = useState(false); // 🍓 慶祝狀態
   const [selectedTags, setSelectedTags] = useState<string[]>([]); // 🍓 標籤過濾狀態
 
   // 🍓 全域快捷鍵監聽 Cmd/Ctrl + P
@@ -268,6 +270,13 @@ const ProjectView: React.FC = () => {
 
   // 更新任務資訊
   const updateTask = (taskId: string, updates: Partial<Task>) => {
+    // 🍓 偵測是否完成任務 (從未滿 100 變為 100)
+    const originalTask = aggregatedTasks.find(t => t.id === taskId);
+    if (originalTask && updates.progress === 100 && originalTask.progress < 100) {
+      setIsCelebrating(true);
+      setTimeout(() => setIsCelebrating(false), 3000);
+    }
+
     const updater = (list: Project[]): Project[] => list.map(p => {
       const idx = p.tasks.findIndex(t => t.id === taskId);
       if (idx !== -1) {
@@ -400,6 +409,9 @@ const ProjectView: React.FC = () => {
     <div className="flex min-h-screen relative overflow-x-hidden bg-[#fff5f8] dark:bg-kuromi-bg transition-colors duration-500">
       {isSidebarOpen && <div className="fixed inset-0 bg-pink-900/20 backdrop-blur-sm z-40 md:hidden" onClick={() => setIsSidebarOpen(false)} />}
       
+      {/* 🍓 慶祝動畫特效 */}
+      {isCelebrating && <Celebration />}
+
       <Sidebar 
         projects={state.projects} 
         workspaceLogo={state.workspaceLogo}
