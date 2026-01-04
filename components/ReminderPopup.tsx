@@ -14,14 +14,7 @@ export const ReminderPopup: React.FC<ReminderPopupProps> = ({ tasks, onClose }) 
 
   useEffect(() => {
     setIsVisible(true);
-    // 🍓 播放可愛的提示音效
-    try {
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-      audio.volume = 0.4;
-      audio.play().catch(e => console.log('音效播放受限', e));
-    } catch (e) {
-      console.log('無法播放音效');
-    }
+    // 🍓 靜音提醒：已移除自動播放音效的程式碼
   }, []);
 
   const handleClose = () => {

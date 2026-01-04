@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Calendar, Flag, AlignLeft, CheckCircle2, Eye, Edit3, Link as LinkIcon, ExternalLink, Trash2, Plus, Globe, ImageIcon, Save, Tag, Check, Palette, Bell, Clock, Activity, Send, CheckSquare } from 'lucide-react';
 import { Task, TaskPriority, TaskStatus, Project, Attachment, ResourceCategory, TaskTag, ReminderType, TaskReminder } from '../types.ts';
 import { COLORS, TAG_PALETTE } from '../constants.tsx';
@@ -20,8 +20,9 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
   const [tempDesc, setTempDesc] = useState(task.description || '');
   
   const [tagInput, setTagInput] = useState('');
-  const [selectedTagColor, setSelectedTagColor] = useState(TAG_PALETTE[Math.floor(Math.random() * TAG_PALETTE.length)]);
+  const [selectedTagColor, setSelectedTagColor] = useState(TAG_PALETTE[0]);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const colorInputRef = useRef<HTMLInputElement>(null);
   
   // 🍓 提醒狀態暫存
   const [tempReminder, setTempReminder] = useState<TaskReminder>(task.reminder || { type: 'none' });
@@ -52,26 +53,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
     setIsEditingDesc(false);
   };
 
-  const handleAddLink = () => {
-    const name = prompt("🍓 連結標題");
-    if (!name) return;
-    const url = prompt("🌐 請貼上網址");
-    if (!url) return;
-
-    let category: ResourceCategory = 'link';
-    if (url.match(/\.(jpeg|jpg|gif|png|webp)$/) != null) category = 'image';
-    else if (url.includes('docs.google.com')) category = 'document';
-
-    const newAttachment: Attachment = {
-      id: Math.random().toString(36).substr(2, 9),
-      name,
-      url,
-      category,
-      createdAt: new Date().toISOString()
-    };
-    onUpdate({ attachments: [...(task.attachments || []), newAttachment] });
-  };
-
   const handleAddTag = () => {
     const tagName = tagInput.trim();
     if (!tagName) return;
@@ -80,57 +61,41 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
       onUpdate({ tags: [...currentTags, { name: tagName, color: selectedTagColor }] });
     }
     setTagInput('');
-    setSelectedTagColor(TAG_PALETTE[Math.floor(Math.random() * TAG_PALETTE.length)]);
   };
 
   const handleRemoveTag = (tagNameToRemove: string) => {
     onUpdate({ tags: (task.tags || []).filter(t => t.name !== tagNameToRemove) });
   };
 
-  // ⏰ 提醒設定處理 (僅暫存)
   const handleReminderTypeChange = (type: ReminderType) => {
     if (type === 'custom') {
       const now = new Date();
       now.setHours(now.getHours() + 1);
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const defaultIso = `${year}-${month}-${day}T${hours}:${minutes}`;
-      setTempReminder({ type, date: defaultIso });
+      const isoStr = format(now, "yyyy-MM-dd'T'HH:mm");
+      setTempReminder({ type, date: isoStr });
     } else {
       setTempReminder({ type });
     }
   };
 
-  // ⏰ 點下「記錄提醒」才真正儲存
   const saveReminderToSchedule = () => {
     if (tempReminder.type === 'none') {
-      // 若不提醒，清除設定與歷史，釋放排程
       onUpdate({ reminder: { type: 'none' }, remindedHistory: [] });
       alert('已取消該任務的所有提醒排程 🔕');
     } else {
-      // 存入設定並重置歷史紀錄，讓引擎重新讀取
       onUpdate({ reminder: tempReminder, remindedHistory: [] });
       alert(`已將「${task.title}」成功加入提醒排程！🍰`);
     }
   };
 
-  const requestNotificationPermission = async () => {
-    if (!('Notification' in window)) return;
-    const permission = await Notification.requestPermission();
-    setPermissionState(permission);
-  };
-
   const sendTestNotification = () => {
     if (Notification.permission === 'granted') {
         new Notification('🔔 測試成功！', {
-            body: `這是來自任務「${task.title}」的測試通知，這樣表示設定沒問題囉！`,
+            body: `這是來自任務「${task.title}」的測試通知！`,
             icon: '/vite.svg'
         });
     } else {
-        requestNotificationPermission();
+        if ('Notification' in window) Notification.requestPermission();
     }
   };
 
@@ -185,14 +150,10 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
             </div>
           </div>
 
-          {/* ⏰ 提醒設定增強 */}
           <div className="space-y-3 bg-blue-50/50 dark:bg-blue-900/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-800">
             <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-blue-400 flex items-center gap-1 uppercase tracking-wider">
                   <Bell size={12} /> 任務提醒輔助
-                  {permissionState !== 'granted' && (
-                    <button className="text-[10px] bg-blue-100 dark:bg-blue-800 text-blue-500 dark:text-blue-200 px-2 py-0.5 rounded-md ml-2 font-bold" onClick={requestNotificationPermission}>開啟權限</button>
-                  )}
                 </label>
                 <button onClick={sendTestNotification} className="flex items-center gap-1 text-[10px] bg-blue-400 text-white px-2 py-1 rounded-lg font-bold hover:bg-blue-500 transition-all shadow-sm">
                   <Send size={10} /> 測試
@@ -211,72 +172,107 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose,
                   <option value="3_days">🗓️ 到期前 3 天</option>
                   <option value="custom">⏰ 自訂精確時間</option>
                 </select>
-                
-                <button 
-                  onClick={saveReminderToSchedule}
-                  className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95 ${
-                    tempReminder.type === 'none' 
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-500' 
-                      : 'bg-blue-500 text-white hover:bg-blue-600'
-                  }`}
-                >
+                <button onClick={saveReminderToSchedule} className="px-4 py-2 rounded-xl bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95 hover:bg-blue-600">
                   <CheckSquare size={14} /> 記錄提醒
                 </button>
               </div>
-              
               {tempReminder.type === 'custom' && (
-                <div className="flex items-center gap-2 animate-in slide-in-from-top-2">
+                <div className="flex items-center gap-2">
                   <Clock size={16} className="text-blue-300" />
-                  <input 
-                    type="datetime-local" 
-                    value={tempReminder.date || ''}
-                    onChange={(e) => setTempReminder({ ...tempReminder, date: e.target.value })}
-                    className="flex-1 p-2 rounded-xl border border-blue-100 dark:border-blue-700 text-sm text-[#5c4b51] dark:text-gray-200 font-bold bg-white dark:bg-gray-800 [color-scheme:dark]"
-                  />
+                  <input type="datetime-local" value={tempReminder.date || ''} onChange={(e) => setTempReminder({ ...tempReminder, date: e.target.value })} className="flex-1 p-2 rounded-xl border border-blue-100 dark:border-blue-700 text-sm text-[#5c4b51] dark:text-gray-200 font-bold bg-white dark:bg-gray-800 [color-scheme:dark]" />
                 </div>
               )}
             </div>
           </div>
 
           <div className="space-y-3">
-            <label className="text-xs font-bold text-pink-300 dark:text-gray-500 flex items-center gap-1 uppercase tracking-wider"><Tag size={12} /> 標籤</label>
-            <div className="bg-pink-50/20 dark:bg-white/5 p-3 rounded-2xl border border-pink-50 dark:border-gray-700 space-y-3">
+            <label className="text-xs font-bold text-pink-300 dark:text-gray-500 flex items-center gap-1 uppercase tracking-wider"><Tag size={12} /> 標籤 (Tags)</label>
+            <div className="bg-pink-50/20 dark:bg-white/5 p-4 rounded-2xl border border-pink-50 dark:border-gray-700 space-y-4">
               <div className="flex flex-wrap gap-2">
                 {task.tags?.map(tag => (
-                  <span key={tag.name} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold text-[#5c4b51]" style={{ backgroundColor: tag.color }}>
+                  <span key={tag.name} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold text-[#5c4b51] shadow-sm" style={{ backgroundColor: tag.color }}>
                     #{tag.name}
-                    <button onClick={() => handleRemoveTag(tag.name)} className="hover:text-red-500 p-0.5"><X size={10} /></button>
+                    <button onClick={() => handleRemoveTag(tag.name)} className="ml-1 hover:text-red-500 p-0.5"><X size={10} /></button>
                   </span>
                 ))}
               </div>
-              <div className="flex gap-2">
-                <input value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddTag()} placeholder="輸入標籤..." className="flex-1 bg-white dark:bg-gray-800 border border-pink-100 dark:border-gray-600 rounded-xl px-3 py-1.5 text-xs dark:text-gray-200" />
-                <button onClick={handleAddTag} className="bg-pink-100 dark:bg-gray-700 text-pink-500 dark:text-gray-300 px-3 rounded-xl"><Plus size={16} /></button>
+              <div className="flex gap-2 items-center relative">
+                <div className="flex-1 relative flex items-center">
+                  <input value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddTag()} placeholder="輸入標籤..." className="w-full bg-white dark:bg-gray-800 border border-pink-100 dark:border-gray-600 rounded-full px-4 py-2 pr-10 text-sm dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-pink-200" />
+                  <button onClick={() => setIsPaletteOpen(!isPaletteOpen)} className="absolute right-3 w-5 h-5 rounded-full border border-black/10 shadow-inner transition-transform hover:scale-110 active:scale-90" style={{ backgroundColor: selectedTagColor }} />
+                </div>
+                <button onClick={handleAddTag} className="bg-pink-100 dark:bg-pink-900/30 text-pink-500 dark:text-pink-300 p-2 rounded-xl font-bold shadow-sm hover:bg-pink-200 transition-all active:scale-95">
+                  <Plus size={20} />
+                </button>
+                {isPaletteOpen && (
+                  <div className="absolute bottom-full right-12 mb-3 p-3 bg-white dark:bg-kuromi-card shadow-2xl rounded-2xl border border-pink-100 dark:border-gray-700 z-[70] grid grid-cols-4 gap-2 animate-in zoom-in-95 origin-bottom">
+                    {TAG_PALETTE.map(c => <button key={c} onClick={() => { setSelectedTagColor(c); setIsPaletteOpen(false); }} className={`w-7 h-7 rounded-full border border-black/5 hover:scale-110 transition-transform ${selectedTagColor === c ? 'ring-2 ring-pink-400 ring-offset-2' : ''}`} style={{ backgroundColor: c }} />)}
+                    <button onClick={() => colorInputRef.current?.click()} className="w-7 h-7 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50 hover:bg-gray-100">
+                      <Plus size={12} className="text-gray-400" />
+                    </button>
+                    <input ref={colorInputRef} type="color" className="hidden" onChange={(e) => { setSelectedTagColor(e.target.value); setIsPaletteOpen(false); }} />
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
           <div className="space-y-4 flex-1 flex flex-col min-h-[400px]">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-pink-300 dark:text-gray-500 flex items-center gap-1 uppercase tracking-wider"><AlignLeft size={14} /> 任務描述</label>
+              <label className="text-xs font-bold text-pink-300 dark:text-gray-500 flex items-center gap-1 uppercase tracking-wider">
+                <AlignLeft size={16} className="text-pink-300 dark:text-pink-400" /> 任務內容描述
+              </label>
+              
               <div className="flex items-center gap-2">
                 {!isEditingDesc ? (
-                  <button onClick={handleStartEdit} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-pink-50 dark:bg-gray-700 text-pink-500 dark:text-pink-300 text-[10px] font-bold shadow-sm"><Edit3 size={12} /> 編輯</button>
+                  <button 
+                    onClick={handleStartEdit} 
+                    className="flex items-center gap-2 px-6 py-2 rounded-[20px] bg-pink-500 text-white text-xs font-black shadow-md hover:bg-pink-600 transition-all active:scale-95"
+                  >
+                    <Edit3 size={14} /> 編輯
+                  </button>
                 ) : (
-                  <div className="flex items-center gap-1.5 bg-pink-50 dark:bg-gray-700 p-1 rounded-xl border border-pink-100">
-                    <button onClick={handleCancelEdit} className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-pink-300">取消</button>
-                    <button onClick={handleSaveDesc} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pink-500 text-white text-[10px] font-bold shadow-sm">完成</button>
+                  // 🍓 如圖 1 的編輯按鈕群組
+                  <div className="flex items-center gap-1 bg-pink-50/80 dark:bg-gray-800 p-1 rounded-full border border-pink-100 dark:border-gray-700 shadow-sm transition-all duration-300">
+                    <button 
+                      onClick={handleCancelEdit} 
+                      className="px-4 py-2 rounded-full text-xs font-bold text-pink-300 dark:text-gray-500 hover:text-pink-500 dark:hover:text-pink-300 transition-colors"
+                    >
+                      取消
+                    </button>
+                    <div className="w-[1px] h-4 bg-pink-100 dark:bg-gray-700 mx-1" />
+                    <button 
+                      onClick={() => setShowPreviewDuringEdit(!showPreviewDuringEdit)} 
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all ${showPreviewDuringEdit ? 'bg-white dark:bg-gray-700 text-pink-500 shadow-sm' : 'text-pink-300 hover:text-pink-500'}`}
+                    >
+                      <Eye size={14} /> 預覽
+                    </button>
+                    <button 
+                      onClick={handleSaveDesc} 
+                      className="flex items-center gap-2 px-5 py-2 rounded-full bg-pink-500 text-white text-xs font-bold hover:bg-pink-600 shadow-md transition-all active:scale-95"
+                    >
+                      <Save size={14} /> 完成
+                    </button>
                   </div>
                 )}
               </div>
             </div>
-            <div className="flex-1 flex flex-col">
-              {isEditingDesc ? (
-                <textarea value={tempDesc} onChange={(e) => setTempDesc(e.target.value)} placeholder="支援 Markdown 語法... 🍓" className="w-full flex-1 p-6 rounded-[30px] bg-pink-50/30 dark:bg-white/5 border-2 border-pink-50 dark:border-gray-700 text-[#5c4b51] dark:text-gray-200 text-sm resize-none" autoFocus />
+
+            <div className="flex-1 flex flex-col mt-2">
+              {isEditingDesc && !showPreviewDuringEdit ? (
+                <textarea 
+                  value={tempDesc} 
+                  onChange={(e) => setTempDesc(e.target.value)} 
+                  placeholder="支援 Markdown 語法... 🍓" 
+                  className="w-full flex-1 p-6 rounded-[30px] bg-pink-50/20 dark:bg-white/5 border-2 border-pink-50 dark:border-gray-700 text-[#5c4b51] dark:text-gray-200 text-sm resize-none focus:outline-none focus:ring-4 focus:ring-pink-50/30" 
+                  autoFocus 
+                />
               ) : (
-                <div className="w-full flex-1 p-6 rounded-[30px] bg-white dark:bg-white/5 border border-pink-50 dark:border-gray-700 overflow-y-auto min-h-[250px] shadow-inner">
-                  <div className="prose prose-pink prose-sm">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.description || "*點擊編輯按鈕來新增內容吧！🍰*"}</ReactMarkdown>
+                <div className="w-full flex-1 p-8 rounded-[40px] bg-white dark:bg-white/5 border border-pink-50 dark:border-gray-700 overflow-y-auto min-h-[300px] shadow-inner animate-in fade-in">
+                  <div className="prose prose-pink prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      { (isEditingDesc ? tempDesc : task.description) || "*目前內容為空，點擊按鈕新增內容吧！🍰*" }
+                    </ReactMarkdown>
                   </div>
                 </div>
               )}
