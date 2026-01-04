@@ -172,6 +172,13 @@ const ProjectView: React.FC = () => {
   // DND Sensors
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
+  // 🍓 自動請求通知權限
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
   const findProject = useCallback((id: string, list: Project[]): Project | null => {
     for (const p of list) {
       if (p.id === id) return p;
@@ -245,7 +252,6 @@ const ProjectView: React.FC = () => {
     if (!currentProject) return;
     const newTask: Task = { id: Math.random().toString(36).substr(2, 9), title: '新任務 🎀', description: '', startDate: new Date().toISOString(), endDate: addDays(new Date(), 2).toISOString(), progress: 0, status: TaskStatus.TODO, priority: TaskPriority.MEDIUM, color: COLORS.taskColors[0], remindedHistory: [], tags: [] };
     updateProject(currentProject.id, { tasks: [...currentProject.tasks, newTask] });
-    // 🍓 立即開啟側邊詳情視窗
     setEditingTaskId(newTask.id);
   };
 
@@ -259,12 +265,13 @@ const ProjectView: React.FC = () => {
     }
   };
 
-  // 提醒主動檢查循環
+  // 🍓 提醒監測循環 (含 Windows 系統通知)
   useEffect(() => {
     const checkReminders = () => {
       const now = new Date();
       const todayStr = format(now, 'yyyy-MM-dd');
       const tasksToNotify: Task[] = [];
+      
       aggregatedTasks.forEach(task => {
         if (!task.reminder || task.reminder.type === 'none' || task.status === TaskStatus.COMPLETED) return;
         let shouldTrigger = false;
@@ -283,14 +290,22 @@ const ProjectView: React.FC = () => {
             if (!task.remindedHistory?.includes(historyKey)) shouldTrigger = true;
           }
         }
+        
         if (shouldTrigger) {
           tasksToNotify.push(task);
+          // 發送 Windows/系統通知
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(`🎀 Melody 任務提醒`, {
+              body: `任務「${task.title}」時間快到囉！🍭`,
+              icon: task.logoUrl?.startsWith('http') ? task.logoUrl : undefined
+            });
+          }
           const newHistory = [...(task.remindedHistory || []), historyKey];
           updateTask(task.id, { remindedHistory: newHistory });
         }
       });
-      // 🍓 Fix: Added explicit type to functional update to resolve 'unknown[]' assignability error
-      if (tasksToNotify.length > 0) setActiveReminders((prev: Task[]) => [...prev, ...tasksToNotify]);
+      // Fix: Remove explicit Task[] type from prev to resolve 'unknown[]' assignability error
+      if (tasksToNotify.length > 0) setActiveReminders((prev) => [...prev, ...tasksToNotify]);
     };
     const timer = setInterval(checkReminders, 30000);
     checkReminders();
@@ -409,7 +424,6 @@ const ProjectView: React.FC = () => {
                    <button onClick={addTask} className="flex items-center gap-2 px-5 py-2 rounded-2xl bg-pink-50 dark:bg-gray-800 text-pink-500 dark:text-pink-300 font-black text-xs hover:bg-pink-100 transition-all shadow-sm"><Plus size={16} /> 新增任務</button>
                 </div>
                 
-                {/* 🍓 任務清單拖曳區 - Fix: Explicitly passing children as a prop to satisfy strict type requirements */}
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                   <SortableContext 
                     items={filteredTasks.map(t => t.id)} 
