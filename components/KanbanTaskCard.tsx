@@ -60,7 +60,9 @@ export const KanbanTaskCard: React.FC<KanbanTaskCardProps> = ({ task, onClick, i
           </h4>
           <div className="flex gap-1">
             {(task.dependencies && task.dependencies.length > 0) && (
-              <Link size={14} className="text-blue-400 opacity-70" title="有前置任務連結" />
+              <div title="有前置任務連結">
+                <Link size={14} className="text-blue-400 opacity-70" />
+              </div>
             )}
           </div>
         </div>
