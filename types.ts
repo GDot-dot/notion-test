@@ -1,3 +1,4 @@
+
 export enum TaskStatus {
   TODO = '待處理',
   IN_PROGRESS = '進行中',
@@ -20,24 +21,18 @@ export interface Attachment {
   createdAt: string;
 }
 
+// 🍓 新增標籤介面
 export interface TaskTag {
   name: string;
   color: string;
 }
 
+// ⏰ 新增提醒設定型別
 export type ReminderType = 'none' | '1_day' | '3_days' | 'custom';
 
 export interface TaskReminder {
   type: ReminderType;
-  date?: string; 
-}
-
-// 🍓 看板欄位定義
-export interface KanbanColumn {
-  id: string;
-  title: string;
-  icon: string;
-  color: string;
+  date?: string; // ISO string for custom time
 }
 
 export interface Task {
@@ -47,15 +42,17 @@ export interface Task {
   startDate: string;
   endDate: string;
   progress: number;
-  status: string; // 🍓 改為 string 以支援動態狀態
+  status: TaskStatus;
   priority: TaskPriority;
   color: string;
   tags?: TaskTag[]; 
   relatedProjectId?: string;
   attachments?: Attachment[];
-  reminder?: TaskReminder; 
-  subtasks?: Task[]; 
-  dependencies?: string[]; 
+  reminder?: TaskReminder; // 新增提醒欄位
+  // 🍓 看板功能增強欄位
+  subtasksTotal?: number;
+  subtasksCompleted?: number;
+  dependencies?: string[]; // 前置任務 ID 列表
 }
 
 export interface Project {
@@ -70,7 +67,6 @@ export interface Project {
   parentId: string | null;
   lastAccessedAt?: string;
   attachments?: Attachment[];
-  kanbanColumns?: KanbanColumn[]; // 🍓 新增看板欄位配置
 }
 
 export type ViewType = 'dashboard' | 'kanban' | 'gantt' | 'calendar' | 'notes';
