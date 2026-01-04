@@ -1,5 +1,4 @@
-
-import { TaskPriority, TaskStatus, Project } from './types.ts';
+import { TaskPriority, TaskStatus, Project, KanbanColumn } from './types.ts';
 
 export const COLORS = {
   primary: '#ff85b2',
@@ -21,18 +20,23 @@ export const COLORS = {
     '#f3e5f5', // 薰衣草紫
   ],
   priority: {
-    [TaskPriority.LOW]: '#e1f5fe',    // 淺藍
-    [TaskPriority.MEDIUM]: '#fff9c4', // 淺黃
-    [TaskPriority.HIGH]: '#ffebee'    // 淺紅
+    [TaskPriority.LOW]: '#e1f5fe',    
+    [TaskPriority.MEDIUM]: '#fff9c4', 
+    [TaskPriority.HIGH]: '#ffebee'    
   },
   status: {
-    [TaskStatus.TODO]: '#ffcdd2',        // 粉紅 (待處理)
-    [TaskStatus.IN_PROGRESS]: '#ffe0b2',  // 粉橘 (進行中)
-    [TaskStatus.COMPLETED]: '#c8e6c9'     // 薄荷綠 (已完成)
+    [TaskStatus.TODO]: '#ffcdd2',        
+    [TaskStatus.IN_PROGRESS]: '#ffe0b2',  
+    [TaskStatus.COMPLETED]: '#c8e6c9'     
   }
 };
 
-// 🍓 標籤專用粉嫩色票
+export const DEFAULT_KANBAN_COLUMNS: KanbanColumn[] = [
+  { id: 'todo', title: '待處理 🎀', icon: '☁️', color: '#ffcdd2' },
+  { id: 'doing', title: '全力衝刺 🍓', icon: '⚡', color: '#ffe0b2' },
+  { id: 'done', title: '大功告成 🎉', icon: '✨', color: '#c8e6c9' }
+];
+
 export const TAG_PALETTE = [
   '#FFCDD2', '#F8BBD0', '#E1BEE7', '#D1C4E9', 
   '#C5CAE9', '#BBDEFB', '#B3E5FC', '#B2EBF2', 
@@ -40,7 +44,6 @@ export const TAG_PALETTE = [
   '#FFF9C4', '#FFECB3', '#FFE0B2', '#FFCCBC'
 ];
 
-// 🎨 根據標籤名稱產生固定的顏色 (保留此函數作為 fallback 或其他用途)
 export const getTagColor = (tagName: string) => {
   let hash = 0;
   for (let i = 0; i < tagName.length; i++) {
@@ -86,6 +89,7 @@ export const INITIAL_PROJECTS: Project[] = [
     logoUrl: '🍓', 
     precautions: ['記得要在圖表上放可愛的 Logo 喔！✨', '使用粉嫩色系（粉紅、粉藍、粉黃）。'],
     precautionsColor: '#fff9c4',
+    kanbanColumns: DEFAULT_KANBAN_COLUMNS,
     tasks: [
       {
         id: 'task-1',
@@ -94,7 +98,7 @@ export const INITIAL_PROJECTS: Project[] = [
         startDate: new Date().toISOString(),
         endDate: new Date(Date.now() + 86400000 * 3).toISOString(),
         progress: 30,
-        status: TaskStatus.IN_PROGRESS,
+        status: 'todo',
         priority: TaskPriority.MEDIUM,
         color: '#ffb8d1',
         tags: [
@@ -112,6 +116,7 @@ export const INITIAL_PROJECTS: Project[] = [
         logoUrl: '📁',
         precautions: [],
         precautionsColor: '#ffecf2',
+        kanbanColumns: DEFAULT_KANBAN_COLUMNS,
         tasks: [],
         children: []
       }
