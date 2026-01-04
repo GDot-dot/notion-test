@@ -1,8 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { HashRouter as Router } from 'react-router-dom';
-import App from './App';
-import { ProjectProvider } from './context/ProjectContext';
+import App from './App.tsx';
+import { ProjectProvider } from './context/ProjectContext.tsx';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
