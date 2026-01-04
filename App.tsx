@@ -61,19 +61,20 @@ const SortableTaskItem: React.FC<{
     <div 
       ref={setNodeRef} 
       style={style}
-      className={`flex items-center gap-4 p-5 rounded-[28px] bg-white dark:bg-white/5 border border-pink-50 dark:border-gray-800 hover:bg-pink-50/20 dark:hover:bg-white/10 hover:shadow-lg transition-all group ${isDragging ? 'shadow-2xl' : ''}`}
+      className={`flex items-center gap-4 p-5 rounded-[28px] bg-white dark:bg-white/5 border border-pink-50 dark:border-gray-800 hover:bg-pink-50/20 dark:hover:bg-white/10 hover:shadow-lg transition-all group ${isDragging ? 'shadow-2xl ring-2 ring-pink-100' : ''}`}
       onClick={() => onEdit(task.id)}
     >
       <div 
         {...attributes} 
         {...listeners} 
-        className="flex items-center gap-1 cursor-grab active:cursor-grabbing text-pink-200 dark:text-gray-600 hover:text-pink-400"
+        className="flex items-center gap-1 cursor-grab active:cursor-grabbing text-pink-200 dark:text-gray-600 hover:text-pink-400 p-1"
+        onClick={(e) => e.stopPropagation()} // 防止點擊手柄觸發編輯
       >
         <GripVertical size={20} />
       </div>
       
       <div 
-        className={`w-8 h-8 rounded-2xl border-2 flex-shrink-0 flex items-center justify-center transition-all ${task.status === TaskStatus.COMPLETED ? 'bg-pink-400 border-pink-400 text-white' : 'bg-pink-50/50 dark:bg-transparent border-pink-100'}`} 
+        className={`w-8 h-8 rounded-2xl border-2 flex-shrink-0 flex items-center justify-center transition-all cursor-pointer ${task.status === TaskStatus.COMPLETED ? 'bg-pink-400 border-pink-400 text-white' : 'bg-pink-50/50 dark:bg-transparent border-pink-100'}`} 
         onClick={(e) => { e.stopPropagation(); onToggleStatus(task.id, task.status); }}
       >
         {task.status === TaskStatus.COMPLETED && <Check size={18} strokeWidth={4} />}
@@ -172,7 +173,7 @@ const ProjectView: React.FC = () => {
   // DND Sensors
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  // 🍓 自動請求通知權限
+  // 自動請求通知權限
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
@@ -265,7 +266,7 @@ const ProjectView: React.FC = () => {
     }
   };
 
-  // 🍓 提醒監測循環 (含 Windows 系統通知)
+  // 提醒監測循環 (含 Windows 系統通知)
   useEffect(() => {
     const checkReminders = () => {
       const now = new Date();
@@ -293,18 +294,17 @@ const ProjectView: React.FC = () => {
         
         if (shouldTrigger) {
           tasksToNotify.push(task);
-          // 發送 Windows/系統通知
+          // 🍓 修復部署錯誤：Task 不包含 logoUrl，改用固定字串或專案標誌
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification(`🎀 Melody 任務提醒`, {
               body: `任務「${task.title}」時間快到囉！🍭`,
-              icon: task.logoUrl?.startsWith('http') ? task.logoUrl : undefined
+              // 移除錯誤的 task.logoUrl 引用
             });
           }
           const newHistory = [...(task.remindedHistory || []), historyKey];
           updateTask(task.id, { remindedHistory: newHistory });
         }
       });
-      // Fix: Remove explicit Task[] type from prev to resolve 'unknown[]' assignability error
       if (tasksToNotify.length > 0) setActiveReminders((prev) => [...prev, ...tasksToNotify]);
     };
     const timer = setInterval(checkReminders, 30000);
@@ -424,6 +424,7 @@ const ProjectView: React.FC = () => {
                    <button onClick={addTask} className="flex items-center gap-2 px-5 py-2 rounded-2xl bg-pink-50 dark:bg-gray-800 text-pink-500 dark:text-pink-300 font-black text-xs hover:bg-pink-100 transition-all shadow-sm"><Plus size={16} /> 新增任務</button>
                 </div>
                 
+                {/* 🍓 啟用 DND 拖曳環境 */}
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                   <SortableContext 
                     items={filteredTasks.map(t => t.id)} 
