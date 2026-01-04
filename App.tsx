@@ -16,7 +16,94 @@ import { COLORS } from './constants.tsx';
 import { useProjects } from './context/ProjectContext.tsx';
 import { auth, googleProvider, isConfigured, signInWithPopup, signOut } from './lib/firebase.ts';
 import { Plus, LayoutDashboard, LayoutGrid, Calendar, BarChart2, BookOpen, Trash2, Check, Edit3, Menu, LogIn, Loader2, Save, CloudCheck, Search, FolderHeart, Sparkles, CloudOff, Filter, Tag, Bell, X, ChevronRight, RotateCcw, Cloud, GripVertical, Laptop } from 'lucide-react';
-import { addDays, format, isSameDay, isBefore } from 'date-fns';
+import { addDays, format, isBefore } from 'date-fns';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+// 🍓 可排序的任務項目元件
+const SortableTaskItem: React.FC<{
+  task: Task;
+  onEdit: (id: string) => void;
+  onToggleStatus: (id: string, currentStatus: TaskStatus) => void;
+  onDelete: (id: string) => void;
+  isDarkMode: boolean;
+}> = ({ task, onEdit, onToggleStatus, onDelete, isDarkMode }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 'auto',
+    opacity: isDragging ? 0.6 : 1,
+  };
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style}
+      className={`flex items-center gap-4 p-5 rounded-[28px] bg-white dark:bg-white/5 border border-pink-50 dark:border-gray-800 hover:bg-pink-50/20 dark:hover:bg-white/10 hover:shadow-lg transition-all group ${isDragging ? 'shadow-2xl' : ''}`}
+      onClick={() => onEdit(task.id)}
+    >
+      <div 
+        {...attributes} 
+        {...listeners} 
+        className="flex items-center gap-1 cursor-grab active:cursor-grabbing text-pink-200 dark:text-gray-600 hover:text-pink-400"
+      >
+        <GripVertical size={20} />
+      </div>
+      
+      <div 
+        className={`w-8 h-8 rounded-2xl border-2 flex-shrink-0 flex items-center justify-center transition-all ${task.status === TaskStatus.COMPLETED ? 'bg-pink-400 border-pink-400 text-white' : 'bg-pink-50/50 dark:bg-transparent border-pink-100'}`} 
+        onClick={(e) => { e.stopPropagation(); onToggleStatus(task.id, task.status); }}
+      >
+        {task.status === TaskStatus.COMPLETED && <Check size={18} strokeWidth={4} />}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="font-black text-[#5c4b51] dark:text-gray-200 text-base group-hover:text-pink-600 dark:group-hover:text-pink-400 truncate transition-colors duration-200">{task.title}</div>
+        <div className="flex items-center gap-2 mt-1">
+          {task.tags?.map(tag => (
+            <span key={tag.name} className="px-2 py-0.5 rounded-lg text-[9px] font-black text-[#5c4b51] dark:text-gray-300" style={{ backgroundColor: isDarkMode ? tag.color + '88' : tag.color + 'aa' }}>
+              #{tag.name}
+            </span>
+          ))}
+          {shouldShowBell(task) && <Bell size={12} className="text-blue-400 fill-blue-400 animate-pulse" />}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className={`hidden sm:flex px-3 py-1 rounded-xl text-[10px] font-black shadow-sm ${task.status === TaskStatus.COMPLETED ? 'bg-green-100 text-green-600' : task.status === TaskStatus.IN_PROGRESS ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-600'}`}>{task.status}</div>
+        <div className="text-lg font-black text-pink-500 w-12 text-right">{task.progress}%</div>
+        <button 
+          onClick={(e) => { e.stopPropagation(); onDelete(task.id); }} 
+          className="p-2 text-pink-100 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <Trash2 size={18} />
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const shouldShowBell = (task: Task) => {
   if (!task.reminder || task.reminder.type === 'none' || task.status === TaskStatus.COMPLETED) return false;
@@ -81,6 +168,9 @@ const ProjectView: React.FC = () => {
   const [isCelebrating, setIsCelebrating] = useState(false);
   const [activeReminders, setActiveReminders] = useState<Task[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+  // DND Sensors
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const findProject = useCallback((id: string, list: Project[]): Project | null => {
     for (const p of list) {
@@ -155,8 +245,57 @@ const ProjectView: React.FC = () => {
     if (!currentProject) return;
     const newTask: Task = { id: Math.random().toString(36).substr(2, 9), title: '新任務 🎀', description: '', startDate: new Date().toISOString(), endDate: addDays(new Date(), 2).toISOString(), progress: 0, status: TaskStatus.TODO, priority: TaskPriority.MEDIUM, color: COLORS.taskColors[0], remindedHistory: [], tags: [] };
     updateProject(currentProject.id, { tasks: [...currentProject.tasks, newTask] });
+    // 🍓 立即開啟側邊詳情視窗
     setEditingTaskId(newTask.id);
   };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = currentProject.tasks.findIndex(t => t.id === active.id);
+      const newIndex = currentProject.tasks.findIndex(t => t.id === over.id);
+      const newTasks = arrayMove(currentProject.tasks, oldIndex, newIndex);
+      updateProject(currentProject.id, { tasks: newTasks });
+    }
+  };
+
+  // 提醒主動檢查循環
+  useEffect(() => {
+    const checkReminders = () => {
+      const now = new Date();
+      const todayStr = format(now, 'yyyy-MM-dd');
+      const tasksToNotify: Task[] = [];
+      aggregatedTasks.forEach(task => {
+        if (!task.reminder || task.reminder.type === 'none' || task.status === TaskStatus.COMPLETED) return;
+        let shouldTrigger = false;
+        let historyKey = '';
+        if (task.reminder.type === 'custom' && task.reminder.date) {
+          const rDate = new Date(task.reminder.date);
+          if (isBefore(rDate, now)) {
+            historyKey = 'custom_fired';
+            if (!task.remindedHistory?.includes(historyKey)) shouldTrigger = true;
+          }
+        } else if (task.reminder.type === '1_day' || task.reminder.type === '3_days') {
+          const days = task.reminder.type === '1_day' ? 1 : 3;
+          const triggerDate = new Date(addDays(new Date(task.endDate), -days).setHours(0, 0, 0, 0));
+          if (isBefore(triggerDate, now) && isBefore(now, new Date(task.endDate))) {
+            historyKey = `${todayStr}_${task.reminder.type}`;
+            if (!task.remindedHistory?.includes(historyKey)) shouldTrigger = true;
+          }
+        }
+        if (shouldTrigger) {
+          tasksToNotify.push(task);
+          const newHistory = [...(task.remindedHistory || []), historyKey];
+          updateTask(task.id, { remindedHistory: newHistory });
+        }
+      });
+      // 🍓 Fix: Added explicit type to functional update to resolve 'unknown[]' assignability error
+      if (tasksToNotify.length > 0) setActiveReminders((prev: Task[]) => [...prev, ...tasksToNotify]);
+    };
+    const timer = setInterval(checkReminders, 30000);
+    checkReminders();
+    return () => clearInterval(timer);
+  }, [aggregatedTasks, updateTask]);
 
   const handleToggleTag = (tagName: string) => { setSelectedTags(prev => prev.includes(tagName) ? prev.filter(t => t !== tagName) : [...prev, tagName]); };
 
@@ -191,7 +330,7 @@ const ProjectView: React.FC = () => {
             <div className="w-16 h-16 md:w-20 md:h-20 bg-white dark:bg-kuromi-card rounded-[32px] flex items-center justify-center text-4xl shadow-inner border-2 border-pink-100 dark:border-gray-600 overflow-hidden cursor-pointer" onClick={() => { const res = prompt('Emoji?', currentProject.logoUrl); if (res) updateProject(currentProject.id, { logoUrl: res }); }}>{currentProject.logoUrl}</div>
             <div className="flex flex-col">
               <input value={currentProject.name} onChange={(e) => updateProject(currentProject.id, { name: e.target.value })} className="text-3xl md:text-4xl font-black text-pink-600 dark:text-kuromi-text bg-transparent border-none focus:outline-none" />
-              <div className="flex items-center gap-2 mt-1 px-3 py-1 bg-black/5 dark:bg-black/30 rounded-full w-fit border border-black/5 dark:border-white/5 transition-all">
+              <div className="flex items-center gap-2 mt-1 px-3 py-1 bg-black/5 dark:bg-black/30 rounded-full w-fit border border-black/5 dark:border-white/5 transition-all shadow-sm">
                 <span className={syncStatus.color}>{syncStatus.icon}</span>
                 <span className={`text-[11px] font-black ${syncStatus.color}`}>
                   {syncStatus.label}
@@ -239,7 +378,7 @@ const ProjectView: React.FC = () => {
                   onClick={() => handleToggleTag(tagName)} 
                   className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black transition-all border shadow-sm flex-shrink-0 ${isSelected ? 'scale-105 ring-2 ring-pink-100 dark:ring-pink-900/40 border-transparent text-black' : 'bg-gray-100/60 dark:bg-white/5 text-gray-500 dark:text-gray-400 border-transparent transition-colors duration-300'}`} 
                   style={{ backgroundColor: isSelected ? tagColor : undefined }}
-                  onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = tagColor + '33'; }}
+                  onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = tagColor + '44'; }}
                   onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = ""; }}
                 >
                   <Tag size={12} fill={isSelected ? "currentColor" : "none"} className={isSelected ? 'text-black' : ''} /> 
@@ -269,28 +408,38 @@ const ProjectView: React.FC = () => {
                    <div className="flex items-center gap-3"><div className="w-10 h-10 bg-pink-50 dark:bg-gray-800 rounded-2xl flex items-center justify-center text-pink-400 shadow-inner border border-pink-100 dark:border-gray-700"><Check size={20} /></div><h3 className="text-xl font-bold text-pink-600 dark:text-kuromi-accent">任務清單</h3></div>
                    <button onClick={addTask} className="flex items-center gap-2 px-5 py-2 rounded-2xl bg-pink-50 dark:bg-gray-800 text-pink-500 dark:text-pink-300 font-black text-xs hover:bg-pink-100 transition-all shadow-sm"><Plus size={16} /> 新增任務</button>
                 </div>
-                <div className="space-y-4">
-                  {filteredTasks.map(task => (
-                    <div key={task.id} onClick={() => setEditingTaskId(task.id)} className="flex items-center gap-4 p-5 rounded-[28px] bg-white dark:bg-white/5 border border-pink-50 dark:border-gray-800 hover:bg-pink-50/20 dark:hover:bg-white/10 hover:shadow-lg transition-all cursor-grab active:cursor-grabbing group">
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity text-pink-200 dark:text-gray-600">
-                        <GripVertical size={20} />
+                
+                {/* 🍓 任務清單拖曳區 - Fix: Explicitly passing children as a prop to satisfy strict type requirements */}
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext 
+                    items={filteredTasks.map(t => t.id)} 
+                    strategy={verticalListSortingStrategy}
+                    children={
+                      <div className="space-y-4">
+                        {filteredTasks.map(task => (
+                          <SortableTaskItem 
+                            key={task.id} 
+                            task={task} 
+                            isDarkMode={state.isDarkMode}
+                            onEdit={setEditingTaskId}
+                            onToggleStatus={(id, status) => updateTask(id, { 
+                              status: status === TaskStatus.COMPLETED ? TaskStatus.TODO : TaskStatus.COMPLETED, 
+                              progress: status === TaskStatus.COMPLETED ? 0 : 100 
+                            })}
+                            onDelete={(id) => {
+                              if (confirm('確定要刪除這個任務嗎？ 🍬')) {
+                                updateProject(currentProject.id, { tasks: currentProject.tasks.filter(t => t.id !== id) });
+                              }
+                            }}
+                          />
+                        ))}
+                        {filteredTasks.length === 0 && (
+                          <div className="py-12 text-center text-pink-200 italic font-bold">目前沒有任務喔，點擊新增按鈕開始吧！🍭</div>
+                        )}
                       </div>
-                      <div className={`w-8 h-8 rounded-2xl border-2 flex-shrink-0 flex items-center justify-center transition-all ${task.status === TaskStatus.COMPLETED ? 'bg-pink-400 border-pink-400 text-white' : 'bg-pink-50/50 dark:bg-transparent border-pink-100'}`} onClick={(e) => { e.stopPropagation(); updateTask(task.id, { status: task.status === TaskStatus.COMPLETED ? TaskStatus.TODO : TaskStatus.COMPLETED, progress: task.status === TaskStatus.COMPLETED ? 0 : 100 }); }}>{task.status === TaskStatus.COMPLETED && <Check size={18} strokeWidth={4} />}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-black text-[#5c4b51] dark:text-gray-200 text-base group-hover:text-pink-600 dark:group-hover:text-pink-400 truncate transition-colors duration-200">{task.title}</div>
-                        <div className="flex items-center gap-2 mt-1">
-                          {task.tags?.map(tag => <span key={tag.name} className="px-2 py-0.5 rounded-lg text-[9px] font-black text-[#5c4b51] dark:text-gray-300" style={{ backgroundColor: state.isDarkMode ? tag.color + '88' : tag.color + 'aa' }}>#{tag.name}</span>)}
-                          {shouldShowBell(task) && <Bell size={12} className="text-blue-400 fill-blue-400 animate-pulse" />}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className={`hidden sm:flex px-3 py-1 rounded-xl text-[10px] font-black shadow-sm ${task.status === TaskStatus.COMPLETED ? 'bg-green-100 text-green-600' : task.status === TaskStatus.IN_PROGRESS ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-600'}`}>{task.status}</div>
-                        <div className="text-lg font-black text-pink-500 w-12 text-right">{task.progress}%</div>
-                        <button onClick={(e) => { e.stopPropagation(); if (confirm('確定要刪除這個任務嗎？ 🍬')) updateProject(currentProject.id, { tasks: currentProject.tasks.filter(t => t.id !== task.id) }); }} className="p-2 text-pink-100 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={18} /></button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    }
+                  />
+                </DndContext>
               </div>
               <CalendarView tasks={filteredTasks} />
             </div>
