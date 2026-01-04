@@ -21,13 +21,11 @@ export interface Attachment {
   createdAt: string;
 }
 
-// 🍓 新增標籤介面
 export interface TaskTag {
   name: string;
   color: string;
 }
 
-// ⏰ 新增提醒設定型別
 export type ReminderType = 'none' | '1_day' | '3_days' | 'custom';
 
 export interface TaskReminder {
@@ -48,11 +46,13 @@ export interface Task {
   tags?: TaskTag[]; 
   relatedProjectId?: string;
   attachments?: Attachment[];
-  reminder?: TaskReminder; // 新增提醒欄位
-  // 🍓 看板功能增強欄位
+  reminder?: TaskReminder;
+  // 🍓 提醒系統增強：記錄已提醒過的歷史
+  // 格式例如: ["2023-10-27_1_day", "custom_fired"]
+  remindedHistory?: string[];
   subtasksTotal?: number;
   subtasksCompleted?: number;
-  dependencies?: string[]; // 前置任務 ID 列表
+  dependencies?: string[];
 }
 
 export interface Project {

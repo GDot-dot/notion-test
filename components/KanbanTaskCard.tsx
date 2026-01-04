@@ -2,15 +2,34 @@
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Task } from '../types.ts';
-import { Link, CheckSquare, Clock } from 'lucide-react';
-import { format } from 'date-fns';
+import { Task, TaskStatus } from '../types.ts';
+import { Link, CheckSquare, Clock, Bell } from 'lucide-react';
+// Fix: Removed subDays and startOfDay as they are not exported by the current date-fns version
+import { format, isBefore, addDays } from 'date-fns';
 
 interface KanbanTaskCardProps {
   task: Task;
   onClick?: () => void;
   isOverlay?: boolean;
 }
+
+// 🍓 複用鈴鐺邏輯
+const shouldShowBell = (task: Task) => {
+  if (!task.reminder || task.reminder.type === 'none' || task.status === TaskStatus.COMPLETED) return false;
+  const now = new Date();
+  if (task.reminder.type === 'custom' && task.reminder.date) {
+    const reminderDate = new Date(task.reminder.date);
+    return isBefore(now, reminderDate) && !task.remindedHistory?.includes('custom_fired');
+  }
+  if (task.reminder.type === '1_day' || task.reminder.type === '3_days') {
+    const days = task.reminder.type === '1_day' ? 1 : 3;
+    // Fix: Use addDays with negative value and manual setHours to replace missing subDays and startOfDay
+    const triggerDate = new Date(addDays(new Date(task.endDate), -days).setHours(0, 0, 0, 0));
+    const todayStr = format(now, 'yyyy-MM-dd');
+    return isBefore(now, new Date(task.endDate)) && !task.remindedHistory?.includes(`${todayStr}_${task.reminder.type}`);
+  }
+  return false;
+};
 
 export const KanbanTaskCard: React.FC<KanbanTaskCardProps> = ({ task, onClick, isOverlay = false }) => {
   const {
@@ -58,7 +77,10 @@ export const KanbanTaskCard: React.FC<KanbanTaskCardProps> = ({ task, onClick, i
           <h4 className="font-bold text-[#5c4b51] dark:text-gray-200 text-sm leading-tight group-hover:text-pink-500 transition-colors">
             {task.title}
           </h4>
-          <div className="flex gap-1">
+          <div className="flex gap-1 items-center">
+            {shouldShowBell(task) && (
+              <Bell size={12} className="text-blue-400 animate-pulse" fill="currentColor" />
+            )}
             {(task.dependencies && task.dependencies.length > 0) && (
               <div title="有前置任務連結">
                 <Link size={14} className="text-blue-400 opacity-70" />
@@ -67,7 +89,7 @@ export const KanbanTaskCard: React.FC<KanbanTaskCardProps> = ({ task, onClick, i
           </div>
         </div>
 
-        {/* 子任務進度 */}
+        {/* 子任務進度 (略，保持不變) */}
         {hasSubtasks && (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-[10px] font-black text-pink-300 dark:text-gray-500">

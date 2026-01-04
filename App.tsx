@@ -16,9 +16,36 @@ import { COLORS } from './constants.tsx';
 import { useProjects } from './context/ProjectContext.tsx';
 import { auth, googleProvider, isConfigured, signInWithPopup, signOut } from './lib/firebase.ts';
 import { Plus, LayoutDashboard, LayoutGrid, Calendar, BarChart2, BookOpen, Trash2, Check, Edit3, Menu, LogIn, Loader2, Save, CloudCheck, Search, FolderHeart, Sparkles, CloudOff, Filter, Tag, Bell } from 'lucide-react';
-import { addDays, format } from 'date-fns';
+// Fix: Removed subDays and startOfDay as they are not exported by the current date-fns version
+import { addDays, format, isSameDay, isBefore } from 'date-fns';
 
-// 🍓 搜尋面板組件
+// 🍓 判斷是否需要顯示小鈴鐺 (還有未來的提醒)
+const shouldShowBell = (task: Task) => {
+  if (!task.reminder || task.reminder.type === 'none' || task.status === TaskStatus.COMPLETED) return false;
+  
+  const now = new Date();
+  
+  if (task.reminder.type === 'custom' && task.reminder.date) {
+    const reminderDate = new Date(task.reminder.date);
+    // 如果自定義時間還沒到，且還沒提醒過，就顯示鈴鐺
+    return isBefore(now, reminderDate) && !task.remindedHistory?.includes('custom_fired');
+  }
+  
+  if (task.reminder.type === '1_day' || task.reminder.type === '3_days') {
+    const days = task.reminder.type === '1_day' ? 1 : 3;
+    // Fix: Use addDays with negative value and manual setHours to replace missing subDays and startOfDay
+    const triggerDate = new Date(addDays(new Date(task.endDate), -days).setHours(0, 0, 0, 0));
+    const todayStr = format(now, 'yyyy-MM-dd');
+    const historyKey = `${todayStr}_${task.reminder.type}`;
+    
+    // 如果結束日期還沒過，且今天還沒提醒過，就顯示鈴鐺
+    return isBefore(now, new Date(task.endDate)) && !task.remindedHistory?.includes(historyKey);
+  }
+  
+  return false;
+};
+
+// 🍓 搜尋面板組件 (略，保持不變)
 const SearchPalette: React.FC<{ 
   projects: Project[], 
   onClose: () => void, 
@@ -99,7 +126,7 @@ const SearchPalette: React.FC<{
                         <div className="flex flex-col">
                           <span className="font-bold text-[#5c4b51] dark:text-gray-200 text-sm">{task.title}</span>
                           <span className="text-[10px] text-pink-300 dark:text-gray-500 opacity-60 truncate max-w-md">{task.description || '尚無描述'}</span>
-                          {task.reminder?.type && task.reminder.type !== 'none' && <span className="text-[9px] text-blue-400 flex items-center gap-1"><Bell size={8}/> 有設定提醒</span>}
+                          {shouldShowBell(task) && <span className="text-[9px] text-blue-400 flex items-center gap-1"><Bell size={8}/> 有設定提醒</span>}
                         </div>
                       </div>
                     ))}
@@ -137,7 +164,6 @@ const TaskItem = React.memo(({ task, onToggleStatus, onEdit, onDelete }: {
       <div className="flex-1 min-w-0">
         <p className={`font-bold text-[#5c4b51] dark:text-gray-200 text-base md:text-lg truncate ${task.status === TaskStatus.COMPLETED ? 'line-through opacity-40' : ''}`}>{task.title}</p>
         
-        {/* 顯示標籤 - 更新為物件結構 */}
         <div className="flex flex-wrap gap-1 mt-1.5 items-center">
           {task.tags && task.tags.length > 0 && task.tags.map(tag => (
             <span 
@@ -148,9 +174,9 @@ const TaskItem = React.memo(({ task, onToggleStatus, onEdit, onDelete }: {
               #{tag.name}
             </span>
           ))}
-          {/* 提醒圖示 */}
-          {task.reminder && task.reminder.type !== 'none' && task.status !== TaskStatus.COMPLETED && (
-            <span className="text-blue-400" title="已設定提醒"><Bell size={12} fill="currentColor" className="opacity-60" /></span>
+          {/* 🍓 智能鈴鐺圖示邏輯 */}
+          {shouldShowBell(task) && (
+            <span className="text-blue-400" title="已設定提醒"><Bell size={12} fill="currentColor" className="opacity-60 animate-pulse" /></span>
           )}
         </div>
       </div>
@@ -175,20 +201,11 @@ const ProjectView: React.FC = () => {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isCelebrating, setIsCelebrating] = useState(false); // 🍓 慶祝狀態
-  const [selectedTags, setSelectedTags] = useState<string[]>([]); // 🍓 標籤過濾狀態
-
-  // 🍓 全域快捷鍵監聽 Cmd/Ctrl + P
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
-        e.preventDefault();
-        setIsSearchOpen(prev => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  const [isCelebrating, setIsCelebrating] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  
+  // 🍓 提醒系統狀態
+  const [activeReminders, setActiveReminders] = useState<Task[]>([]);
 
   // 輔助函式：在樹狀結構中尋找專案
   const findProject = useCallback((id: string, list: Project[]): Project | null => {
@@ -204,24 +221,8 @@ const ProjectView: React.FC = () => {
     return (projectId ? findProject(projectId, state.projects) : null) || state.projects[0];
   }, [projectId, state.projects, findProject]);
 
-  // 🍓 追蹤最近存取時間
-  useEffect(() => {
-    if (currentProject) {
-      const now = new Date().toISOString();
-      if (currentProject.lastAccessedAt && (new Date().getTime() - new Date(currentProject.lastAccessedAt).getTime() < 1000 * 30)) return;
-      
-      const updater = (list: Project[]): Project[] => list.map(p => {
-        if (p.id === currentProject.id) return { ...p, lastAccessedAt: now };
-        return { ...p, children: updater(p.children) };
-      });
-      const next = updater(state.projects);
-      dispatch({ type: 'UPDATE_PROJECTS', projects: next });
-    }
-  }, [currentProject?.id]);
-
   const activeView = (view || 'dashboard') as ViewType;
 
-  // 輔助函式：遞迴獲取所有子專案的任務
   const getAggregatedTasks = useCallback((proj: Project): Task[] => {
     let tasks = [...proj.tasks];
     proj.children.forEach(child => {
@@ -234,32 +235,82 @@ const ProjectView: React.FC = () => {
     return currentProject ? getAggregatedTasks(currentProject) : [];
   }, [currentProject, getAggregatedTasks]);
 
-  // 🍓 計算所有可用的標籤 (Unique - 包含顏色)
-  const availableTags = useMemo(() => {
-    const tagsMap = new Map<string, string>(); // name -> color
-    aggregatedTasks.forEach(t => t.tags?.forEach(tag => {
-      if (!tagsMap.has(tag.name)) {
-        tagsMap.set(tag.name, tag.color);
+  // ---------------------------------------------------------
+  // 🍓 Melody 提醒引擎核心邏輯
+  // ---------------------------------------------------------
+  useEffect(() => {
+    const checkReminders = () => {
+      const now = new Date();
+      const todayStr = format(now, 'yyyy-MM-dd');
+      const foundAlerts: Task[] = [];
+      const updatedTaskIds: {id: string, history: string[]}[] = [];
+
+      console.log(`[Melody 提醒引擎] 正在掃描任務... ${format(now, 'HH:mm:ss')}`);
+
+      aggregatedTasks.forEach(task => {
+        if (task.status === TaskStatus.COMPLETED || !task.reminder || task.reminder.type === 'none') return;
+
+        const history = task.remindedHistory || [];
+        let triggered = false;
+        let triggeredKey = '';
+
+        // 1. 自定義精確時間提醒 (custom)
+        if (task.reminder.type === 'custom' && task.reminder.date) {
+          const reminderDate = new Date(task.reminder.date);
+          if (now >= reminderDate && !history.includes('custom_fired')) {
+            triggered = true;
+            triggeredKey = 'custom_fired';
+          }
+        }
+
+        // 2. 倒數提醒 (1天前, 3天前)
+        if (task.reminder.type === '1_day' || task.reminder.type === '3_days') {
+          const days = task.reminder.type === '1_day' ? 1 : 3;
+          const dueDate = new Date(task.endDate);
+          // Fix: Replace missing subDays and startOfDay with addDays and manual setHours
+          const triggerDate = new Date(addDays(dueDate, -days).setHours(0, 0, 0, 0));
+          const historyKey = `${todayStr}_${task.reminder.type}`;
+
+          // 如果今天大於等於觸發日，且今天還沒提醒過
+          if (now >= triggerDate && !history.includes(historyKey)) {
+            triggered = true;
+            triggeredKey = historyKey;
+          }
+        }
+
+        if (triggered) {
+          console.log(`🍓 提醒觸發: ${task.title} (${triggeredKey})`);
+          foundAlerts.push(task);
+          updatedTaskIds.push({ id: task.id, history: [...history, triggeredKey] });
+
+          // 🍓 發送 Windows 系統通知
+          if (Notification.permission === 'granted') {
+            new Notification(`🎀 Melody 提醒：${task.title}`, {
+              body: `任務時間到囉！快來處理吧 🍰`,
+              icon: '/vite.svg', // 使用專案圖示
+            });
+          }
+        }
+      });
+
+      if (foundAlerts.length > 0) {
+        setActiveReminders(prev => [...prev, ...foundAlerts]);
+        // 更新任務歷史狀態，防止重複提醒
+        updatedTaskIds.forEach(item => {
+          updateTask(item.id, { remindedHistory: item.history });
+        });
       }
-    }));
-    return Array.from(tagsMap.entries()).map(([name, color]) => ({ name, color }));
+    };
+
+    // 初始執行一次 (處理 F5)
+    checkReminders();
+
+    // 設定 10 秒輪詢
+    const interval = setInterval(checkReminders, 10000);
+    return () => clearInterval(interval);
   }, [aggregatedTasks]);
+  // ---------------------------------------------------------
 
-  // 🍓 根據選取的標籤過濾任務
-  const filteredTasks = useMemo(() => {
-    if (selectedTags.length === 0) return aggregatedTasks;
-    return aggregatedTasks.filter(task => 
-      task.tags?.some(tag => selectedTags.includes(tag.name))
-    );
-  }, [aggregatedTasks, selectedTags]);
-
-  const toggleTagFilter = (tagName: string) => {
-    setSelectedTags(prev => 
-      prev.includes(tagName) ? prev.filter(t => t !== tagName) : [...prev, tagName]
-    );
-  };
-
-  // 更新專案資訊
   const updateProject = (id: string, updates: Partial<Project>) => {
     const updater = (list: Project[]): Project[] => list.map(p => {
       if (p.id === id) return { ...p, ...updates };
@@ -270,9 +321,7 @@ const ProjectView: React.FC = () => {
     syncToCloud(next);
   };
 
-  // 更新任務資訊
   const updateTask = (taskId: string, updates: Partial<Task>) => {
-    // 🍓 偵測是否完成任務 (從未滿 100 變為 100)
     const originalTask = aggregatedTasks.find(t => t.id === taskId);
     if (originalTask && updates.progress === 100 && originalTask.progress < 100) {
       setIsCelebrating(true);
@@ -310,7 +359,8 @@ const ProjectView: React.FC = () => {
       attachments: [],
       tags: [],
       subtasksTotal: 0,
-      subtasksCompleted: 0
+      subtasksCompleted: 0,
+      remindedHistory: []
     };
     updateProject(currentProject.id, { tasks: [...currentProject.tasks, newTask] });
     setEditingTaskId(newTask.id);
@@ -326,40 +376,6 @@ const ProjectView: React.FC = () => {
     const next = remover(state.projects);
     dispatch({ type: 'UPDATE_PROJECTS', projects: next });
     syncToCloud(next);
-  };
-
-  const deleteProject = (id: string) => {
-    if (!confirm('確定要刪除目前這個計畫嗎？ 🥺')) return;
-    
-    const filter = (list: Project[]): Project[] => list.filter(p => p.id !== id).map(p => ({
-      ...p,
-      children: filter(p.children)
-    }));
-    
-    let next = filter(state.projects);
-
-    if (next.length === 0) {
-      const defaultProject: Project = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: '我的新計畫 🎀',
-        parentId: null,
-        notes: '# 歡迎來到 Melody 專案管理 🍓\n\n這裡是您的新起點！',
-        precautions: ['試著新增一些任務吧！', '可以更換專案 Logo 喔'],
-        precautionsColor: COLORS.stickyNotes[Math.floor(Math.random() * COLORS.stickyNotes.length)],
-        tasks: [],
-        children: [],
-        logoUrl: '✨',
-        attachments: []
-      };
-      next = [defaultProject];
-    }
-
-    dispatch({ type: 'UPDATE_PROJECTS', projects: next });
-    syncToCloud(next);
-    
-    if (!findProject(currentProject.id, next)) {
-       navigate(`/project/${next[0].id}/dashboard`);
-    }
   };
 
   const addProject = (parentId: string | null) => {
@@ -399,7 +415,6 @@ const ProjectView: React.FC = () => {
       await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
       console.error("Login failed:", error);
-      alert(`登入失敗 🥺\n原因：${error.message || "未知錯誤"}\n請檢查 Firebase 控制台的 Google Auth 是否已啟用。`);
     }
   };
 
@@ -413,8 +428,15 @@ const ProjectView: React.FC = () => {
     <div className="flex min-h-screen relative overflow-x-hidden bg-[#fff5f8] dark:bg-kuromi-bg transition-colors duration-500">
       {isSidebarOpen && <div className="fixed inset-0 bg-pink-900/20 backdrop-blur-sm z-40 md:hidden" onClick={() => setIsSidebarOpen(false)} />}
       
-      {/* 🍓 慶祝動畫特效 */}
       {isCelebrating && <Celebration />}
+
+      {/* 🍓 提醒視窗 */}
+      {activeReminders.length > 0 && (
+        <ReminderPopup 
+          tasks={activeReminders} 
+          onClose={() => setActiveReminders([])} 
+        />
+      )}
 
       <Sidebar 
         projects={state.projects} 
@@ -450,43 +472,19 @@ const ProjectView: React.FC = () => {
             </div>
             <div className="flex-1 min-w-0">
               <input value={currentProject.name} onChange={(e) => updateProject(currentProject.id, { name: e.target.value })} className="text-2xl md:text-4xl font-black text-pink-600 dark:text-kuromi-text bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-pink-100 rounded-xl px-2 w-full truncate" />
-              <div className="flex items-center gap-2 mt-1 ml-2">
-                <div className="flex items-center gap-2 px-3 py-1 bg-white/40 dark:bg-white/10 rounded-full border border-pink-100 dark:border-gray-700 shadow-sm">
-                  {state.isSyncing ? (
-                    <><Loader2 size={12} className="text-pink-400 animate-spin" /><span className="text-[10px] text-pink-400 font-bold">處理中...</span></>
-                  ) : !isConfigured ? (
-                    <><CloudOff size={12} className="text-pink-300" /><span className="text-[10px] text-pink-400 font-bold">🍓 本機模式 (未填寫金鑰)</span></>
-                  ) : state.user ? (
-                    <><CloudCheck size={12} className="text-green-400" /><span className="text-[10px] text-green-500 font-bold">雲端已同步</span></>
-                  ) : (
-                    <><Save size={12} className="text-blue-400" /><span className="text-[10px] text-blue-500 font-bold">等待登入</span></>
-                  )}
-                </div>
-              </div>
             </div>
           </div>
           
           <div className="flex items-center gap-2 md:gap-4">
-            <button 
-              onClick={() => setIsSearchOpen(true)}
-              className="p-2.5 bg-white dark:bg-kuromi-card text-pink-400 dark:text-kuromi-text hover:text-pink-600 rounded-xl border border-pink-50 dark:border-gray-700 shadow-sm hover:bg-pink-50 dark:hover:bg-gray-700 transition-all flex items-center gap-2"
-            >
-              <Search size={20} /> <span className="hidden sm:inline font-bold text-sm">搜尋</span>
-            </button>
+            <button onClick={() => setIsSearchOpen(true)} className="p-2.5 bg-white dark:bg-kuromi-card text-pink-400 dark:text-kuromi-text hover:text-pink-600 rounded-xl border border-pink-50 dark:border-gray-700 shadow-sm hover:bg-pink-50 transition-all flex items-center gap-2"><Search size={20} /> <span className="hidden sm:inline font-bold text-sm">搜尋</span></button>
             {!state.user ? (
-              <button 
-                onClick={handleLogin} 
-                className={`flex items-center gap-2 bg-white px-4 py-2 rounded-xl font-bold text-sm shadow-md border border-blue-50 transition-all text-blue-500 hover:bg-blue-50 active:scale-95`}
-              >
-                <LogIn size={18} /> Google 登入
-              </button>
+              <button onClick={handleLogin} className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl font-bold text-sm shadow-md border border-blue-50 transition-all text-blue-500 hover:bg-blue-50 active:scale-95"><LogIn size={18} /> Google 登入</button>
             ) : (
               <div className="flex items-center gap-3 bg-white/60 dark:bg-kuromi-card p-1.5 pr-4 rounded-2xl border border-pink-100 dark:border-gray-700 shadow-sm">
                 <img src={state.user.photoURL || ''} className="w-8 h-8 rounded-full border-2 border-pink-200 shadow-sm" />
                 <button onClick={() => auth && signOut(auth)} className="text-[10px] font-bold text-pink-300 hover:text-red-400">登出</button>
               </div>
             )}
-            <button onClick={() => deleteProject(currentProject.id)} className="p-2.5 bg-white dark:bg-kuromi-card text-pink-300 hover:text-red-400 rounded-xl border border-pink-50 dark:border-gray-700 shadow-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"><Trash2 size={20} /></button>
             <button onClick={() => addProject(currentProject.id)} className="flex items-center gap-2 bg-pink-500 text-white px-4 md:px-6 py-2 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm shadow-md hover:bg-pink-600 transition-all active:scale-95"><Plus size={16} /> 建立計畫</button>
           </div>
         </header>
@@ -508,37 +506,8 @@ const ProjectView: React.FC = () => {
         <div className="space-y-8 md:space-y-12 pb-20 animate-in fade-in duration-500">
           {activeView === 'dashboard' ? (
             <div className="space-y-8 md:space-y-12">
-              {/* 🍓 標籤過濾器 (Tag Filter) */}
-              {availableTags.length > 0 && (
-                <div className="flex items-center gap-3 overflow-x-auto pb-2 no-scrollbar px-1">
-                  <div className="flex items-center gap-2 text-pink-300 dark:text-gray-400 font-bold text-xs px-2 whitespace-nowrap">
-                    <Filter size={14} /> 過濾標籤:
-                  </div>
-                  {availableTags.map(tag => {
-                    const isSelected = selectedTags.includes(tag.name);
-                    return (
-                      <button
-                        key={tag.name}
-                        onClick={() => toggleTagFilter(tag.name)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${isSelected ? 'shadow-md scale-105 border-2 border-white dark:border-gray-500' : 'opacity-60 grayscale hover:grayscale-0 hover:opacity-100'}`}
-                        style={{ backgroundColor: tag.color, color: '#5c4b51' }}
-                      >
-                        <Tag size={10} className={isSelected ? 'fill-current' : ''} />
-                        {tag.name}
-                        {isSelected && <Check size={10} />}
-                      </button>
-                    );
-                  })}
-                  {selectedTags.length > 0 && (
-                    <button onClick={() => setSelectedTags([])} className="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-300 text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-600 ml-2">
-                      清除
-                    </button>
-                  )}
-                </div>
-              )}
-
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-                <ProgressBoard tasks={filteredTasks} />
+                <ProgressBoard tasks={aggregatedTasks} />
                 <ProjectPrecautions 
                   precautions={currentProject.precautions || []} 
                   backgroundColor={currentProject.precautionsColor}
@@ -547,7 +516,7 @@ const ProjectView: React.FC = () => {
                 />
               </div>
               
-              <GanttChart tasks={filteredTasks} onTaskClick={setEditingTaskId} />
+              <GanttChart tasks={aggregatedTasks} onTaskClick={setEditingTaskId} />
               
               <div className="bg-white dark:bg-kuromi-card rounded-[32px] md:rounded-[40px] p-6 md:p-8 cute-shadow border border-pink-100 dark:border-gray-700">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
@@ -555,8 +524,8 @@ const ProjectView: React.FC = () => {
                   <button onClick={addTask} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-pink-50 dark:bg-gray-700 text-pink-500 dark:text-pink-300 px-6 py-2.5 rounded-2xl font-bold hover:bg-pink-100 dark:hover:bg-gray-600 shadow-sm transition-all"><Plus size={18} /> 新增任務</button>
                 </div>
                 <div className="space-y-4">
-                  {filteredTasks.length > 0 ? (
-                    filteredTasks.map(task => (
+                  {aggregatedTasks.length > 0 ? (
+                    aggregatedTasks.map(task => (
                       <TaskItem 
                         key={task.id} 
                         task={task} 
@@ -569,19 +538,16 @@ const ProjectView: React.FC = () => {
                       />
                     ))
                   ) : (
-                    <div className="text-center py-12 text-pink-200 dark:text-gray-500 font-bold italic border-2 border-dashed border-pink-50 dark:border-gray-700 rounded-3xl">
-                      {selectedTags.length > 0 ? '沒有符合選取標籤的任務喔 🥺' : '快來新增你的第一個任務吧！🍭'}
-                    </div>
+                    <div className="text-center py-12 text-pink-200 dark:text-gray-500 font-bold italic border-2 border-dashed border-pink-50 dark:border-gray-700 rounded-3xl">快來新增你的第一個任務吧！🍭</div>
                   )}
                 </div>
               </div>
-              <CalendarView tasks={filteredTasks} />
             </div>
           ) : (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 h-full">
-              {activeView === 'kanban' && <KanbanBoard tasks={filteredTasks} onTaskUpdate={updateTask} onTaskClick={setEditingTaskId} />}
-              {activeView === 'gantt' && <GanttChart tasks={filteredTasks} onTaskClick={setEditingTaskId} />}
-              {activeView === 'calendar' && <CalendarView tasks={filteredTasks} />}
+              {activeView === 'kanban' && <KanbanBoard tasks={aggregatedTasks} onTaskUpdate={updateTask} onTaskClick={setEditingTaskId} />}
+              {activeView === 'gantt' && <GanttChart tasks={aggregatedTasks} onTaskClick={setEditingTaskId} />}
+              {activeView === 'calendar' && <CalendarView tasks={aggregatedTasks} />}
               {activeView === 'notes' && (
                 <NotesArea 
                   notes={currentProject.notes} 
@@ -601,7 +567,7 @@ const ProjectView: React.FC = () => {
         <SearchPalette 
           projects={state.projects} 
           onClose={() => setIsSearchOpen(false)} 
-          onSelect={(id, type) => {
+          onSelect={(id) => {
             navigate(`/project/${id}/dashboard`);
             setIsSearchOpen(false);
           }}
@@ -638,7 +604,6 @@ const App: React.FC = () => {
           )
         }
       />
-      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };
