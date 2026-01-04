@@ -34,7 +34,6 @@ interface ProgressBoardProps {
 }
 
 // 🍓 任務卡片組件
-// Fix: Use React.FC to properly handle key and other standard React props in TypeScript
 const SortableTaskCard: React.FC<{ task: Task, onClick?: (id: string) => void }> = ({ task, onClick }) => {
   const {
     attributes,
@@ -103,7 +102,6 @@ const SortableTaskCard: React.FC<{ task: Task, onClick?: (id: string) => void }>
 };
 
 // 🍓 看板欄位組件
-// Fix: Use React.FC to properly handle key and other standard React props in TypeScript
 const SortableKanbanColumn: React.FC<{ 
   column: KanbanColumn, 
   tasks: Task[], 
@@ -155,19 +153,18 @@ const SortableKanbanColumn: React.FC<{
       </div>
 
       <div className="flex-1 space-y-3 custom-scrollbar">
-        {/* Fix: SortableContext might have type issues in React 18 due to implicit children removal. We cast to any to ensure compilation. */}
-        {(SortableContext as any) && (
-          <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-            {tasks.map(task => (
-              <SortableTaskCard key={task.id} task={task} onClick={onTaskClick} />
-            ))}
-            {tasks.length === 0 && (
-              <div className="h-24 border-2 border-dashed border-pink-100 dark:border-gray-700 rounded-2xl flex items-center justify-center text-[10px] font-bold text-pink-200 dark:text-gray-600">
-                拖曳任務至此 🍰
-              </div>
-            )}
-          </SortableContext>
-        )}
+        {/* Fix: @ts-ignore added to suppress children property error in SortableContext */}
+        {/* @ts-ignore */}
+        <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+          {tasks.map(task => (
+            <SortableTaskCard key={task.id} task={task} onClick={onTaskClick} />
+          ))}
+          {tasks.length === 0 && (
+            <div className="h-24 border-2 border-dashed border-pink-100 dark:border-gray-700 rounded-2xl flex items-center justify-center text-[10px] font-bold text-pink-200 dark:text-gray-600">
+              拖曳任務至此 🍰
+            </div>
+          )}
+        </SortableContext>
       </div>
     </div>
   );
@@ -292,22 +289,21 @@ export const ProgressBoard: React.FC<ProgressBoardProps> = ({ tasks, columns, on
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            {/* Fix: Use any cast for SortableContext to handle React 18 children type mismatch if necessary */}
-            {(SortableContext as any) && (
-              <SortableContext items={columns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
-                {columns.map(col => (
-                  <SortableKanbanColumn 
-                    key={col.id} 
-                    column={col} 
-                    tasks={tasks.filter(t => t.status === col.id)} 
-                    onTaskClick={onTaskClick}
-                    isEditing={isEditing}
-                    onEdit={() => editColumn(col)}
-                    onDelete={() => deleteColumn(col.id)}
-                  />
-                ))}
-              </SortableContext>
-            )}
+            {/* Fix: @ts-ignore added to suppress children property error in SortableContext */}
+            {/* @ts-ignore */}
+            <SortableContext items={columns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
+              {columns.map(col => (
+                <SortableKanbanColumn 
+                  key={col.id} 
+                  column={col} 
+                  tasks={tasks.filter(t => t.status === col.id)} 
+                  onTaskClick={onTaskClick}
+                  isEditing={isEditing}
+                  onEdit={() => editColumn(col)}
+                  onDelete={() => deleteColumn(col.id)}
+                />
+              ))}
+            </SortableContext>
             
             <DragOverlay dropAnimation={{
               sideEffects: defaultDropAnimationSideEffects({

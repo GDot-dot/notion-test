@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar.tsx';
@@ -13,65 +14,145 @@ import { Project, ViewType, TaskStatus, Task, TaskPriority, KanbanColumn } from 
 import { COLORS, DEFAULT_KANBAN_COLUMNS } from './constants.tsx';
 import { useProjects } from './context/ProjectContext.tsx';
 import { auth, googleProvider, isConfigured, signInWithPopup, signOut } from './lib/firebase.ts';
-import { Plus, LayoutDashboard, Calendar, BarChart2, BookOpen, Trash2, Check, Edit3, Menu, LogIn, Loader2, Save, CloudCheck, Search, FolderHeart, Sparkles, CloudOff, Filter, Tag, Bell, PieChart, Kanban } from 'lucide-react';
+import { Plus, LayoutDashboard, Calendar, BarChart2, BookOpen, Trash2, Check, Edit3, Menu, LogIn, Loader2, Save, CloudCheck, Search, FolderHeart, Sparkles, CloudOff, Filter, Tag, Bell, PieChart, Kanban, List } from 'lucide-react';
 import { addDays, format } from 'date-fns';
 import { PieChart as RPieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
-// 🍓 任務進度統計組件
-const TaskStats: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
-  const data = useMemo(() => {
-    const stats = {
-      done: tasks.filter(t => t.progress === 100).length,
-      todo: tasks.filter(t => t.progress === 0).length,
-      doing: tasks.filter(t => t.progress > 0 && t.progress < 100).length,
+// 🍓 強化版任務統計組件 - 保持圓環圖固定在左側且水平置中
+const TaskStats: React.FC<{ tasks: Task[], onTaskClick: (id: string) => void }> = ({ tasks, onTaskClick }) => {
+  const [activeTab, setActiveTab] = useState<'summary' | 'list'>('summary');
+
+  const stats = useMemo(() => {
+    const total = tasks.length || 1;
+    const todoCount = tasks.filter(t => t.progress === 0).length;
+    const doingCount = tasks.filter(t => t.progress > 0 && t.progress < 100).length;
+    const doneCount = tasks.filter(t => t.progress === 100).length;
+    
+    const avgProgress = tasks.length > 0 
+      ? Math.round(tasks.reduce((acc, t) => acc + t.progress, 0) / tasks.length)
+      : 0;
+
+    return {
+      avgProgress,
+      todo: { count: todoCount, percent: Math.round((todoCount / total) * 100) },
+      doing: { count: doingCount, percent: Math.round((doingCount / total) * 100) },
+      done: { count: doneCount, percent: Math.round((doneCount / total) * 100) },
+      chartData: [
+        { name: '待處理', value: todoCount > 0 ? todoCount : 0.001, color: '#FFD1DC' },
+        { name: '進行中', value: doingCount > 0 ? doingCount : 0.001, color: '#FFE5B4' },
+        { name: '已完成', value: doneCount > 0 ? doneCount : 0.001, color: '#D1F2D1' }
+      ]
     };
-    return [
-      { name: '已完成', value: stats.done, color: '#c8e6c9' },
-      { name: '進行中', value: stats.doing, color: '#ffe0b2' },
-      { name: '待處理', value: stats.todo, color: '#ffcdd2' },
-    ].filter(d => d.value > 0);
   }, [tasks]);
 
   return (
-    <div className="bg-white dark:bg-kuromi-card rounded-[40px] p-8 cute-shadow border border-pink-100 dark:border-gray-700 flex flex-col items-center justify-center transition-all h-full">
-      <h3 className="text-xl font-bold text-pink-600 dark:text-kuromi-accent mb-6 flex items-center gap-2 self-start"><PieChart size={20} /> 任務進度概況</h3>
-      {tasks.length > 0 ? (
-        <div className="w-full h-48">
+    <div className="bg-white dark:bg-kuromi-card rounded-[40px] p-6 md:p-8 cute-shadow border border-pink-100 dark:border-gray-700 flex flex-col transition-all h-full min-h-[420px]">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-pink-50 dark:bg-gray-700 rounded-xl text-pink-500">
+            <PieChart size={20} />
+          </div>
+          <h3 className="text-xl font-black text-pink-600 dark:text-kuromi-accent">任務進度</h3>
+        </div>
+        
+        <div className="bg-pink-50/50 dark:bg-gray-800 p-1 rounded-full flex items-center shadow-inner">
+          <button 
+            onClick={() => setActiveTab('summary')}
+            className={`flex items-center gap-2 px-6 py-2 rounded-full text-xs font-bold transition-all ${activeTab === 'summary' ? 'bg-white dark:bg-gray-700 text-pink-500 shadow-md' : 'text-pink-300 dark:text-gray-500'}`}
+          >
+            <PieChart size={14} /> 摘要
+          </button>
+          <button 
+            onClick={() => setActiveTab('list')}
+            className={`flex items-center gap-2 px-6 py-2 rounded-full text-xs font-bold transition-all ${activeTab === 'list' ? 'bg-white dark:bg-gray-700 text-pink-500 shadow-md' : 'text-pink-300 dark:text-gray-500'}`}
+          >
+            <List size={14} /> 任務清單
+          </button>
+        </div>
+      </div>
+
+      {/* Body Content: 圓環圖固定在左側，內容垂直置中 */}
+      <div className="flex-1 flex flex-col md:flex-row items-center justify-center gap-8 md:gap-12">
+        {/* Left: Donut Chart (Permanent) */}
+        <div className="relative w-48 h-48 md:w-56 md:h-56 flex-shrink-0 animate-in zoom-in duration-500">
           <ResponsiveContainer width="100%" height="100%">
             <RPieChart>
               <Pie
-                data={data}
-                innerRadius={60}
-                outerRadius={80}
-                paddingAngle={5}
+                data={stats.chartData}
+                innerRadius="70%"
+                outerRadius="90%"
+                paddingAngle={stats.chartData.every(d => d.value > 0.001) ? 5 : 0}
                 dataKey="value"
+                stroke="none"
               >
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} stroke="white" strokeWidth={2} />
+                {stats.chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip 
-                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-              />
             </RPieChart>
           </ResponsiveContainer>
-          <div className="flex justify-center gap-4 mt-2">
-            {data.map(d => (
-              <div key={d.name} className="flex items-center gap-1 text-[10px] font-bold text-gray-500">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
-                {d.name} ({d.value})
-              </div>
-            ))}
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span className="text-4xl md:text-5xl font-black text-pink-500">{stats.avgProgress}%</span>
+            <span className="text-[10px] md:text-xs font-bold text-pink-300 uppercase tracking-widest mt-1">總體進度</span>
           </div>
         </div>
-      ) : (
-        <div className="text-pink-200 dark:text-gray-600 italic font-bold py-12">尚無資料分析 🍰</div>
-      )}
+
+        {/* Right Side: Toggleable Content - 水平且垂直置中 */}
+        <div className="flex-1 w-full max-w-md flex flex-col justify-center">
+          {activeTab === 'summary' ? (
+            <div className="space-y-6 py-4 animate-in fade-in slide-in-from-right-4 duration-300">
+              {[
+                { label: '待處理', stats: stats.todo, color: '#FFD1DC' },
+                { label: '進行中', stats: stats.doing, color: '#FFE5B4' },
+                { label: '已完成', stats: stats.done, color: '#D1F2D1' }
+              ].map((item) => (
+                <div key={item.label} className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-sm font-bold text-[#5c4b51] dark:text-gray-300">{item.label}</span>
+                    </div>
+                    <span className="text-sm font-black text-pink-400">{item.stats.percent}%</span>
+                  </div>
+                  <div className="h-3 w-full bg-pink-50/50 dark:bg-gray-800 rounded-full overflow-hidden shadow-inner border border-pink-50 dark:border-gray-700">
+                    <div 
+                      className="h-full rounded-full transition-all duration-1000 ease-out"
+                      style={{ width: `${item.stats.percent}%`, backgroundColor: item.color }} 
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-6 max-h-[280px] overflow-y-auto pr-3 custom-scrollbar py-2 animate-in fade-in slide-in-from-right-4 duration-300">
+              {tasks.length > 0 ? tasks.map(t => (
+                <div key={t.id} onClick={() => onTaskClick(t.id)} className="space-y-2 group cursor-pointer">
+                  <div className="flex justify-between items-center px-1">
+                    <span className="text-sm font-bold text-[#5c4b51] dark:text-gray-200 group-hover:text-pink-500 transition-colors truncate pr-4">{t.title}</span>
+                    <span className="text-sm font-black text-pink-400">{t.progress}%</span>
+                  </div>
+                  <div className="h-3 w-full bg-pink-50/30 dark:bg-gray-800 rounded-full overflow-hidden shadow-sm border border-pink-50 dark:border-gray-700">
+                    <div 
+                      className="h-full rounded-full transition-all duration-700 ease-out"
+                      style={{ width: `${t.progress}%`, backgroundColor: t.color || '#FFB8D1' }} 
+                    />
+                  </div>
+                </div>
+              )) : (
+                <div className="flex flex-col items-center justify-center py-12 opacity-30">
+                  <Sparkles size={32} className="text-pink-300 mb-2" />
+                  <p className="text-xs text-pink-300 font-bold italic">尚無任務數據 🍰</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
 
-// 🍓 搜尋面板組件 (略，保持原有功能)
 const SearchPalette: React.FC<{ 
   projects: Project[], 
   onClose: () => void, 
@@ -112,28 +193,22 @@ const SearchPalette: React.FC<{
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
-          <div className="flex gap-1">
-             <kbd className="hidden sm:inline-block px-2 py-1 bg-pink-50 dark:bg-gray-700 text-pink-300 dark:text-gray-400 text-[10px] rounded-lg font-bold">ESC</kbd>
-          </div>
         </div>
-        
         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
           {query.trim() === '' ? (
             <div className="text-center py-20 opacity-30">
               <Sparkles size={48} className="mx-auto mb-4 text-pink-300" />
-              <p className="font-bold text-[#5c4b51] dark:text-gray-400">輸入關鍵字開始快速導航 🍰</p>
+              <p className="font-bold text-[#5c4b51] dark:text-gray-400">輸入關鍵字開始導航 🍰</p>
             </div>
           ) : (
             <div className="space-y-6">
               {searchResults.projects.length > 0 && (
                 <div>
-                  <h4 className="text-[10px] font-black text-pink-300 dark:text-gray-500 uppercase tracking-widest mb-3 ml-2">計畫項目 / Projects</h4>
+                  <h4 className="text-[10px] font-black text-pink-300 dark:text-gray-500 uppercase tracking-widest mb-3 ml-2">計畫項目</h4>
                   <div className="space-y-1">
                     {searchResults.projects.map(p => (
-                      <div key={p.id} onClick={() => onSelect(p.id, 'project')} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white dark:hover:bg-white/10 hover:shadow-md cursor-pointer transition-all group">
-                        <div className="w-8 h-8 rounded-lg bg-pink-50 dark:bg-gray-700 shadow-inner flex items-center justify-center border border-pink-100 dark:border-gray-600 group-hover:border-pink-300">
-                          {p.logoUrl?.length === 2 ? p.logoUrl : <FolderHeart size={16} className="text-pink-400" />}
-                        </div>
+                      <div key={p.id} onClick={() => onSelect(p.id, 'project')} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white dark:hover:bg-white/10 hover:shadow-md cursor-pointer transition-all">
+                        <FolderHeart size={16} className="text-pink-400" />
                         <span className="font-bold text-[#5c4b51] dark:text-gray-200">{p.name}</span>
                       </div>
                     ))}
@@ -142,25 +217,16 @@ const SearchPalette: React.FC<{
               )}
               {searchResults.tasks.length > 0 && (
                 <div>
-                  <h4 className="text-[10px] font-black text-pink-300 dark:text-gray-500 uppercase tracking-widest mb-3 ml-2">任務項目 / Tasks</h4>
+                  <h4 className="text-[10px] font-black text-pink-300 dark:text-gray-500 uppercase tracking-widest mb-3 ml-2">任務項目</h4>
                   <div className="space-y-1">
                     {searchResults.tasks.map(({ task, projectId }) => (
-                      <div key={task.id} onClick={() => onSelect(projectId, 'task')} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white dark:hover:bg-white/10 hover:shadow-md cursor-pointer transition-all group">
-                        <div className="w-8 h-8 rounded-lg border-2 border-pink-200 dark:border-pink-900 flex items-center justify-center text-[10px] font-black text-pink-400 bg-white dark:bg-gray-800">
-                          {task.progress}%
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="font-bold text-[#5c4b51] dark:text-gray-200 text-sm">{task.title}</span>
-                          <span className="text-[10px] text-pink-300 dark:text-gray-500 opacity-60 truncate max-w-md">{task.description || '尚無描述'}</span>
-                          {task.reminder?.type && task.reminder.type !== 'none' && <span className="text-[9px] text-blue-400 flex items-center gap-1"><Bell size={8}/> 有設定提醒</span>}
-                        </div>
+                      <div key={task.id} onClick={() => onSelect(projectId, 'task')} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white dark:hover:bg-white/10 hover:shadow-md cursor-pointer transition-all">
+                        <div className="w-8 h-8 rounded-lg border-2 border-pink-200 flex items-center justify-center text-[10px] font-black text-pink-400">{task.progress}%</div>
+                        <span className="font-bold text-[#5c4b51] dark:text-gray-200 text-sm">{task.title}</span>
                       </div>
                     ))}
                   </div>
                 </div>
-              )}
-              {searchResults.projects.length === 0 && searchResults.tasks.length === 0 && (
-                <div className="text-center py-10 opacity-30 font-bold dark:text-gray-400">找不到相關內容 🥺</div>
               )}
             </div>
           )}
@@ -170,7 +236,6 @@ const SearchPalette: React.FC<{
   );
 };
 
-// 🍓 任務項
 const TaskItem = React.memo(({ task, onToggleStatus, onEdit, onDelete }: { 
   task: Task, 
   onToggleStatus: () => void, 
@@ -258,16 +323,6 @@ const ProjectView: React.FC = () => {
     return aggregatedTasks.filter(task => task.tags?.some(tag => selectedTags.includes(tag.name)));
   }, [aggregatedTasks, selectedTags]);
 
-  const availableTags = useMemo(() => {
-    const tagsMap = new Map<string, string>();
-    aggregatedTasks.forEach(t => t.tags?.forEach(tag => {
-      if (!tagsMap.has(tag.name)) tagsMap.set(tag.name, tag.color);
-    }));
-    return Array.from(tagsMap.entries()).map(([name, color]) => ({ name, color }));
-  }, [aggregatedTasks]);
-
-  const toggleTagFilter = (tagName: string) => setSelectedTags(prev => prev.includes(tagName) ? prev.filter(t => t !== tagName) : [...prev, tagName]);
-
   const updateProject = (id: string, updates: Partial<Project>) => {
     const updater = (list: Project[]): Project[] => list.map(p => {
       if (p.id === id) return { ...p, ...updates };
@@ -329,12 +384,6 @@ const ProjectView: React.FC = () => {
     syncToCloud(next);
   };
 
-  const handleLogin = async () => {
-    if (!isConfigured) { alert("🍭 需要設定 Firebase！"); return; }
-    if (!auth) return;
-    try { await signInWithPopup(auth, googleProvider); } catch (e) { console.error(e); }
-  };
-
   if (state.isLoading) return <div className="h-screen flex items-center justify-center bg-[#fff5f8] dark:bg-kuromi-bg"><Loader2 className="w-12 h-12 text-pink-400 animate-spin" /></div>;
 
   const currentColumns = currentProject.kanbanColumns || DEFAULT_KANBAN_COLUMNS;
@@ -373,21 +422,17 @@ const ProjectView: React.FC = () => {
               <input value={currentProject.name} onChange={(e) => updateProject(currentProject.id, { name: e.target.value })} className="text-2xl md:text-4xl font-black text-pink-600 dark:text-kuromi-text bg-transparent border-none focus:outline-none w-full truncate" />
               <div className="flex items-center gap-2 mt-1 ml-2">
                 <div className="flex items-center gap-2 px-3 py-1 bg-white/40 dark:bg-white/10 rounded-full border border-pink-100 dark:border-gray-700 shadow-sm">
-                  {state.isSyncing ? <><Loader2 size={12} className="text-pink-400 animate-spin" /><span className="text-[10px] text-pink-400 font-bold">處理中...</span></> : state.user ? <><CloudCheck size={12} className="text-green-400" /><span className="text-[10px] text-green-500 font-bold">雲端已同步</span></> : <><CloudOff size={12} className="text-pink-300" /><span className="text-[10px] text-pink-400 font-bold">🍓 本機模式</span></>}
+                  {state.isSyncing ? <><Loader2 size={12} className="text-pink-400 animate-spin" /><span className="text-[10px] text-pink-400 font-bold">處理中...</span></> : state.user ? <><CloudCheck size={12} className="text-green-400" /><span className="text-[10px] text-green-500 font-bold">雲端同步中</span></> : <><CloudOff size={12} className="text-pink-300" /><span className="text-[10px] text-pink-400 font-bold">🍓 本機模式</span></>}
                 </div>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2 md:gap-4">
-            <button onClick={() => setIsSearchOpen(true)} className="p-2.5 bg-white dark:bg-kuromi-card text-pink-400 rounded-xl border border-pink-50 dark:border-gray-700 shadow-sm hover:bg-pink-50 transition-all flex items-center gap-2"><Search size={20} /> <span className="hidden sm:inline font-bold text-sm">搜尋</span></button>
-            {!state.user ? <button onClick={handleLogin} className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl font-bold text-sm shadow-md border border-blue-50 text-blue-500 hover:bg-blue-50 transition-all"><LogIn size={18} /> Google 登入</button> : <div className="flex items-center gap-3 bg-white/60 dark:bg-kuromi-card p-1.5 pr-4 rounded-2xl border border-pink-100 shadow-sm"><img src={state.user.photoURL || ''} className="w-8 h-8 rounded-full border-2 border-pink-200 shadow-sm" /><button onClick={() => auth && signOut(auth)} className="text-[10px] font-bold text-pink-300">登出</button></div>}
-            <button onClick={() => { if(confirm('刪除計畫？')) { 
-              const next = state.projects.filter(p => p.id !== currentProject.id);
-              dispatch({ type: 'UPDATE_PROJECTS', projects: next }); syncToCloud(next); navigate('/');
-            }}} className="p-2.5 bg-white dark:bg-kuromi-card text-pink-300 hover:text-red-400 rounded-xl border border-pink-50 shadow-sm"><Trash2 size={20} /></button>
+          <div className="flex items-center gap-2">
+            {!state.user && <button onClick={() => isConfigured && signInWithPopup(auth!, googleProvider)} className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl font-bold text-sm shadow-md border border-blue-50 text-blue-500 hover:bg-blue-50 transition-all"><LogIn size={18} /> 登入</button>}
           </div>
         </header>
 
+        {/* 🍓 導覽標籤順序: 總覽, 任務互動看板, 甘特圖, 日期表, 設定 */}
         <div className="flex gap-2 md:gap-4 mb-8 overflow-x-auto pb-2 no-scrollbar">
           {[
             { id: 'dashboard', label: '總覽', icon: <LayoutDashboard size={18} /> },
@@ -402,12 +447,12 @@ const ProjectView: React.FC = () => {
           ))}
         </div>
 
-        <div className="space-y-8 md:space-y-12 pb-20 animate-in fade-in duration-500">
+        <div className="space-y-12 pb-20 animate-in fade-in duration-500">
           {activeView === 'dashboard' ? (
-            <div className="space-y-8 md:space-y-12">
-              {/* 1. 任務進度 + 專案注意事項 */}
+            <div className="space-y-12">
+              {/* 🍓 1. 任務進度 + 專案注意事項 (Row) */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-                <TaskStats tasks={filteredTasks} />
+                <TaskStats tasks={filteredTasks} onTaskClick={setEditingTaskId} />
                 <ProjectPrecautions 
                   precautions={currentProject.precautions || []} 
                   backgroundColor={currentProject.precautionsColor}
@@ -416,7 +461,7 @@ const ProjectView: React.FC = () => {
                 />
               </div>
 
-              {/* 2. 任務互動看板 */}
+              {/* 🍓 2. 任務互動看板 (Full width) */}
               <ProgressBoard 
                 tasks={filteredTasks} 
                 columns={currentColumns}
@@ -425,10 +470,10 @@ const ProjectView: React.FC = () => {
                 onTaskClick={setEditingTaskId}
               />
 
-              {/* 3. 專案開發甘特圖 */}
+              {/* 🍓 3. 專案開發甘特圖 (Full width) */}
               <GanttChart tasks={filteredTasks} onTaskClick={setEditingTaskId} />
 
-              {/* 4. 任務細節清單 */}
+              {/* 🍓 4. 任務細節清單 (Full width) */}
               <div className="bg-white dark:bg-kuromi-card rounded-[32px] md:rounded-[40px] p-6 md:p-8 cute-shadow border border-pink-100 dark:border-gray-700">
                 <div className="flex justify-between items-center mb-8">
                   <h3 className="text-xl font-bold text-pink-600 dark:text-kuromi-accent flex items-center gap-3"><Check size={20} /> 任務細節清單</h3>
@@ -437,11 +482,11 @@ const ProjectView: React.FC = () => {
                 <div className="space-y-4">
                   {filteredTasks.length > 0 ? filteredTasks.map(task => (
                     <TaskItem key={task.id} task={task} onToggleStatus={() => updateTask(task.id, { progress: task.progress === 100 ? 0 : 100 })} onEdit={() => setEditingTaskId(task.id)} onDelete={() => deleteTask(task.id)} />
-                  )) : <div className="text-center py-12 text-pink-200 italic font-bold">快來新增你的第一個任務吧！🍭</div>}
+                  )) : <div className="text-center py-12 text-pink-200 italic font-bold">快來新增任務吧！🍭</div>}
                 </div>
               </div>
 
-              {/* 5. 日期表 */}
+              {/* 🍓 5. 日期表 (Full width) */}
               <CalendarView tasks={filteredTasks} />
             </div>
           ) : (
